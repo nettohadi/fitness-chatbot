@@ -1,36 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Test endpoint to simulate Twilio webhook calls
+ * Test endpoint to simulate Telegram webhook calls
  *
  * Usage:
  * POST /api/test
- * Body: { "phoneNumber": "+1234567890", "message": "450 calories" }
+ * Body: { "chatId": 123456789, "message": "450 calories" }
  */
 export async function POST(request: NextRequest) {
   try {
-    const { phoneNumber, message } = await request.json();
+    const { chatId, message } = await request.json();
 
-    if (!phoneNumber || !message) {
+    if (!chatId || !message) {
       return NextResponse.json(
-        { error: 'Missing phoneNumber or message in request body' },
+        { error: 'Missing chatId or message in request body' },
         { status: 400 }
       );
     }
 
-    // Create form data to simulate Twilio webhook
-    const formData = new FormData();
-    formData.append('From', `whatsapp:${phoneNumber}`);
-    formData.append('To', process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886');
-    formData.append('Body', message);
-    formData.append('MessageSid', `TEST${Date.now()}`);
-    formData.append('AccountSid', 'TESTACCOUNT');
+    // Create Telegram update object to simulate webhook
+    const telegramUpdate = {
+      update_id: Date.now(),
+      message: {
+        message_id: Date.now(),
+        from: {
+          id: Number(chatId),
+          is_bot: false,
+          first_name: 'Test',
+          username: 'testuser',
+        },
+        chat: {
+          id: Number(chatId),
+          first_name: 'Test',
+          username: 'testuser',
+          type: 'private',
+        },
+        date: Math.floor(Date.now() / 1000),
+        text: message,
+      },
+    };
 
     // Call the webhook handler
     const webhookUrl = new URL('/api/webhook', request.url);
     const response = await fetch(webhookUrl.toString(), {
       method: 'POST',
-      body: formData,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(telegramUpdate),
     });
 
     if (!response.ok) {
@@ -44,7 +61,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Test message sent successfully',
-      phoneNumber,
+      chatId,
       messageBody: message,
     });
   } catch (error) {
@@ -61,20 +78,20 @@ export async function POST(request: NextRequest) {
 
 export async function GET() {
   return NextResponse.json({
-    message: 'Test endpoint for simulating Twilio webhook calls',
+    message: 'Test endpoint for simulating Telegram webhook calls',
     usage: {
       method: 'POST',
       body: {
-        phoneNumber: '+1234567890',
+        chatId: 123456789,
         message: 'Your message here (e.g., "450 calories", "100g chicken", "today", "help")',
       },
     },
     examples: [
-      { phoneNumber: '+1234567890', message: 'help' },
-      { phoneNumber: '+1234567890', message: '450 calories' },
-      { phoneNumber: '+1234567890', message: '100g grilled chicken breast' },
-      { phoneNumber: '+1234567890', message: 'today' },
-      { phoneNumber: '+1234567890', message: 'week' },
+      { chatId: 123456789, message: 'help' },
+      { chatId: 123456789, message: '450 calories' },
+      { chatId: 123456789, message: '100g grilled chicken breast' },
+      { chatId: 123456789, message: 'today' },
+      { chatId: 123456789, message: 'week' },
     ],
   });
 }

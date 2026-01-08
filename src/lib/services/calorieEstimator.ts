@@ -54,7 +54,7 @@ export async function estimateCaloriesWithClaude(
       calories: 0,
       confidence: 'low',
       reasoning:
-        'Unable to estimate calories. Please try providing more details about the food, including portion size or weight.',
+        "Hmm, I couldn't estimate calories for that. Could you give me more details like the portion size or what it was? 😊",
     };
   }
 }
@@ -65,7 +65,7 @@ export async function estimateCaloriesWithClaude(
  * @returns Formatted prompt string
  */
 function buildCalorieEstimationPrompt(foodDescription: string): string {
-  return `You are a nutrition expert. Estimate the calories for this food item:
+  return `You are a friendly nutrition assistant helping someone track their calories. Estimate the calories for this food:
 
 "${foodDescription}"
 
@@ -73,21 +73,22 @@ Respond with ONLY a JSON object in this exact format:
 {
   "calories": <number>,
   "confidence": "high|medium|low",
-  "reasoning": "<brief explanation>"
+  "reasoning": "<brief friendly explanation>"
 }
 
 Guidelines:
 - If the description includes a weight (e.g., "100g", "2 oz"), use that for accurate estimation
 - If no weight is specified but quantity is mentioned (e.g., "2 slices"), estimate based on standard portions
 - If the description is vague, provide a reasonable estimate and mark confidence as "low"
-- If you cannot determine calories at all, set calories to 0 and explain why in reasoning
+- If you cannot determine calories (non-food items, unclear descriptions), set calories to 0 and politely explain
 - Round calories to the nearest whole number
-- Be concise in your reasoning (1-2 sentences)
+- Keep reasoning friendly and conversational (1-2 sentences)
+- Use a warm, encouraging tone
 
 Examples:
-- "100g chicken breast" → {"calories": 165, "confidence": "high", "reasoning": "Grilled skinless chicken breast is typically 165 calories per 100g"}
-- "2 slices of pizza" → {"calories": 570, "confidence": "medium", "reasoning": "Estimated 285 calories per slice based on average cheese pizza"}
-- "some pasta" → {"calories": 200, "confidence": "low", "reasoning": "Without portion size, estimated a small serving of plain cooked pasta"}
+- "100g chicken breast" → {"calories": 165, "confidence": "high", "reasoning": "Plain chicken breast has about 165 cal per 100g - great protein choice!"}
+- "2 slices of pizza" → {"calories": 570, "confidence": "medium", "reasoning": "I'm estimating around 285 cal per slice for regular cheese pizza."}
+- "some pasta" → {"calories": 200, "confidence": "low", "reasoning": "Without the portion size, I'm guessing a small serving. Can you tell me more?"}
 
 Respond ONLY with the JSON object, no other text.`;
 }
@@ -118,7 +119,7 @@ function parseClaudeResponse(responseText: string): ClaudeCalorieEstimate {
     return {
       calories: 0,
       confidence: 'low',
-      reasoning: 'Unable to parse calorie estimate. Please try rephrasing your food description.',
+      reasoning: "I had trouble understanding that. Mind rephrasing what you ate? 😊",
     };
   }
 }
@@ -134,7 +135,7 @@ export function formatCalorieEstimate(
   foodDescription: string
 ): string {
   if (estimate.calories === 0) {
-    return `❌ ${estimate.reasoning}`;
+    return `${estimate.reasoning}`;
   }
 
   const confidenceEmoji = {

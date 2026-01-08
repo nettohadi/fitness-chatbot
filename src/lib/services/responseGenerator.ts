@@ -134,6 +134,67 @@ export function generateErrorMessage(error?: string): string {
 }
 
 /**
+ * Generate friendly casual chat response
+ * @param message - The user's message
+ * @returns Friendly response
+ */
+export function generateCasualResponse(message: string): string {
+  const lowerMessage = message.toLowerCase().trim();
+
+  // Greetings
+  if (lowerMessage.match(/^(hi|hello|hey|sup|yo)/)) {
+    const responses = [
+      "Hey! 👋 How's it going?",
+      "Hi there! 😊 What's up?",
+      "Hello! How can I help you today?",
+      "Hey! Ready to track some calories? 💪",
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+
+  // Thanks
+  if (lowerMessage.includes('thank')) {
+    const responses = [
+      "You're welcome! 😊",
+      "Happy to help! 💪",
+      "Anytime! That's what I'm here for!",
+      "No problem at all! 👍",
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+
+  // How are you
+  if (lowerMessage.includes('how are you')) {
+    return "I'm doing great, thanks for asking! 😊 I'm here to help you track your calories. How about you?";
+  }
+
+  // Goodbye
+  if (lowerMessage.match(/^(bye|goodbye|see you)/)) {
+    const responses = [
+      "See you later! Stay healthy! 💪",
+      "Bye! Keep up the good work! 😊",
+      "Goodbye! Don't forget to track your meals! 🍽️",
+      "Take care! See you soon! 👋",
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+
+  // Positive reactions
+  if (lowerMessage.match(/^(nice|cool|awesome|great|perfect|ok|okay|yes|sure)/)) {
+    const responses = [
+      "😊 Glad to hear it!",
+      "Great! Need anything else?",
+      "Awesome! 💪",
+      "Perfect! Let me know if you need help!",
+    ];
+    return responses[Math.floor(Math.random() * responses.length)];
+  }
+
+  // Default friendly response
+  return "I'm here to help you track your calories! 😊 Just send me what you ate, or type 'help' to see what I can do!";
+}
+
+/**
  * Group calorie entries by date
  * @param entries - Array of calorie entries
  * @returns Object with dates as keys and entries as values

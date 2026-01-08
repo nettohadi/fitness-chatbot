@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendWhatsAppMessage } from '@/lib/twilio';
+import { sendTelegramMessage } from '@/lib/telegram';
 import { parseMessage, sanitizeInput } from '@/lib/services/messageParser';
 import { estimateCaloriesWithClaude } from '@/lib/services/calorieEstimator';
 import {
@@ -9,6 +9,7 @@ import {
   generateDailySummary,
   generateWeeklySummary,
   generateErrorMessage,
+  generateCasualResponse,
 } from '@/lib/services/responseGenerator';
 import { findOrCreateUser } from '@/lib/db/users';
 import {
@@ -18,36 +19,62 @@ import {
   getWeeklySummary,
   getCurrentWeekRange,
 } from '@/lib/db/calories';
+import { logConversation } from '@/lib/db/conversations';
 import { MessageType } from '@/types';
+
+interface TelegramUpdate {
+  update_id: number;
+  message?: {
+    message_id: number;
+    from: {
+      id: number;
+      is_bot: boolean;
+      first_name: string;
+      last_name?: string;
+      username?: string;
+    };
+    chat: {
+      id: number;
+      first_name: string;
+      last_name?: string;
+      username?: string;
+      type: string;
+    };
+    date: number;
+    text?: string;
+  };
+}
 
 export async function POST(request: NextRequest) {
   try {
-    // Parse the form data from Twilio
-    const formData = await request.formData();
-    const from = formData.get('From') as string;
-    const body = formData.get('Body') as string;
+    // Parse the JSON data from Telegram
+    const update: TelegramUpdate = await request.json();
 
-    if (!from || !body) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+    // Check if this is a valid message update
+    if (!update.message || !update.message.text) {
+      return NextResponse.json({ ok: true });
     }
 
-    // Sanitize the input
-    const sanitizedBody = sanitizeInput(body);
+    const chatId = update.message.chat.id;
+    const messageText = update.message.text;
 
-    // Extract phone number (remove 'whatsapp:' prefix)
-    const phoneNumber = from.replace('whatsapp:', '');
+    // Sanitize the input
+    const sanitizedBody = sanitizeInput(messageText);
+
+    // Use chat ID as identifier (stored in phone_number field for now)
+    const userIdentifier = chatId.toString();
 
     // Find or create user
-    const userResult = await findOrCreateUser(phoneNumber);
+    const userResult = await findOrCreateUser(userIdentifier);
     if (!userResult.success || !userResult.data) {
-      await sendWhatsAppMessage(from, generateErrorMessage('Failed to create user account'));
-      return NextResponse.json({ error: 'User creation failed' }, { status: 500 });
+      await sendTelegramMessage(chatId, generateErrorMessage('Failed to create user account'));
+      return NextResponse.json({ ok: true });
     }
 
     const user = userResult.data;
+
+    // Log incoming message
+    await logConversation(userIdentifier, 'incoming', sanitizedBody);
 
     // Parse the message to determine its type
     const parsedMessage = parseMessage(sanitizedBody);
@@ -82,15 +109,22 @@ export async function POST(request: NextRequest) {
         );
         break;
 
+      case MessageType.CASUAL_CHAT:
+        responseMessage = generateCasualResponse(parsedMessage.description || sanitizedBody);
+        break;
+
       default:
         responseMessage = generateErrorMessage('Unknown command. Send "help" for assistance.');
     }
 
     // Send response back to user
-    await sendWhatsAppMessage(from, responseMessage);
+    await sendTelegramMessage(chatId, responseMessage);
 
-    // Return success response to Twilio
-    return new NextResponse(null, { status: 200 });
+    // Log outgoing message
+    await logConversation(userIdentifier, 'outgoing', responseMessage);
+
+    // Return success response to Telegram
+    return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('Error in webhook handler:', error);
     return NextResponse.json(

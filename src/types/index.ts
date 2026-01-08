@@ -32,6 +32,7 @@ export enum MessageType {
   QUERY_TODAY = 'query_today',
   QUERY_WEEK = 'query_week',
   HELP = 'help',
+  CASUAL_CHAT = 'casual_chat',
   UNKNOWN = 'unknown',
 }
 

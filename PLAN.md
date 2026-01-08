@@ -1,16 +1,17 @@
-# WhatsApp Calorie Tracking Chatbot - Implementation Plan
+# Telegram Calorie Tracking Chatbot - Implementation Plan
 
 ## Overview
-Build a WhatsApp chatbot that tracks daily calorie intake by accepting either direct calorie values or food descriptions with weights, using Claude AI to estimate calories from natural language food descriptions.
+Build a Telegram chatbot that tracks daily calorie intake by accepting either direct calorie values or food descriptions with weights, using Claude AI to estimate calories from natural language food descriptions.
 
 ## Tech Stack
 - **Frontend/Backend**: Next.js 14+ (App Router) with TypeScript
 - **Styling**: Tailwind CSS
 - **UI Components**: shadcn/ui (for future dashboard features)
-- **Database**: PostgreSQL via Supabase (remote) + local PostgreSQL for development
-- **WhatsApp Integration**: Twilio WhatsApp API
+- **Database**: PostgreSQL (local for development, Supabase for production)
+- **ORM**: Prisma with PostgreSQL adapter
+- **Messaging Platform**: Telegram Bot API
 - **LLM**: Anthropic Claude API (for calorie estimation)
-- **User Identification**: WhatsApp phone number
+- **User Identification**: Telegram chat ID
 - **Deployment**: Vercel (recommended for Next.js)
 
 ---
@@ -23,13 +24,15 @@ Build a WhatsApp chatbot that tracks daily calorie intake by accepting either di
 ```sql
 CREATE TABLE users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  phone_number VARCHAR(20) UNIQUE NOT NULL,  -- WhatsApp phone number (E.164 format)
+  phone_number VARCHAR(20) UNIQUE NOT NULL,  -- Telegram chat ID (stored as string)
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE INDEX idx_users_phone ON users(phone_number);
 ```
+
+**Note**: The field is named `phone_number` for backwards compatibility but stores the Telegram chat ID.
 
 #### Table: `calorie_entries`
 ```sql
@@ -72,14 +75,17 @@ fitness-chatbot/
 ├── next.config.ts
 ├── tailwind.config.ts
 ├── components.json               # shadcn/ui config
-├── supabase/
-│   └── migrations/
-│       └── 001_initial_schema.sql
+├── prisma/
+│   ├── schema.prisma              # Prisma schema
+│   └── migrations/                # Database migrations
 ├── src/
 │   ├── app/
 │   │   ├── api/
 │   │   │   ├── webhook/
-│   │   │   │   └── route.ts           # Twilio webhook handler
+│   │   │   │   └── route.ts           # Telegram webhook handler
+│   │   │   ├── telegram/
+│   │   │   │   └── setup/
+│   │   │   │       └── route.ts       # Telegram webhook setup endpoint
 │   │   │   └── test/
 │   │   │       └── route.ts           # Testing endpoint
 │   │   ├── layout.tsx
@@ -88,8 +94,8 @@ fitness-chatbot/
 │   │   └── ui/                        # shadcn/ui components
 │   ├── lib/
 │   │   ├── utils.ts                   # shadcn/ui utils
-│   │   ├── supabase.ts                # Supabase client setup
-│   │   ├── twilio.ts                  # Twilio client setup
+│   │   ├── prisma.ts                  # Prisma client setup
+│   │   ├── telegram.ts                # Telegram bot client setup
 │   │   ├── claude.ts                  # Claude API client
 │   │   ├── db/
 │   │   │   ├── users.ts               # User database operations
@@ -97,7 +103,7 @@ fitness-chatbot/
 │   │   └── services/
 │   │       ├── messageParser.ts       # Parse incoming messages
 │   │       ├── calorieEstimator.ts    # Claude API integration for estimation
-│   │       └── responseGenerator.ts   # Generate WhatsApp responses
+│   │       └── responseGenerator.ts   # Generate Telegram responses
 │   └── types/
 │       └── index.ts                   # TypeScript types
 ├── PLAN.md                            # This file
@@ -109,11 +115,11 @@ fitness-chatbot/
 ### 3. Message Processing Workflow
 
 ```
-1. User sends WhatsApp message
+1. User sends Telegram message
    ↓
-2. Twilio receives message → forwards to webhook (POST /api/webhook)
+2. Telegram sends update to webhook (POST /api/webhook)
    ↓
-3. Webhook handler validates Twilio signature
+3. Webhook handler processes Telegram update
    ↓
 4. Parse message to determine type:
    - Direct calorie? (regex: numbers + "cal", "kcal", "calories")
@@ -134,21 +140,21 @@ fitness-chatbot/
     → Calculate totals
     → Send summary
    ↓
-6. Send response via Twilio → User receives WhatsApp message
+6. Send response via Telegram → User receives Telegram message
 ```
 
 ---
 
 ### 4. Core Implementation Details
 
-#### A. Twilio Webhook Handler (`src/app/api/webhook/route.ts`)
+#### A. Telegram Webhook Handler (`src/app/api/webhook/route.ts`)
 ```typescript
-// Handles incoming WhatsApp messages
-- Validate Twilio signature for security
-- Extract: From (phone number), Body (message text)
-- Create/find user by phone number
+// Handles incoming Telegram messages
+- Parse JSON update from Telegram
+- Extract: chat.id, message.text
+- Create/find user by chat ID
 - Route to appropriate handler based on message type
-- Send response back via Twilio
+- Send response back via Telegram Bot API
 ```
 
 #### B. Message Parser (`src/lib/services/messageParser.ts`)
@@ -200,21 +206,14 @@ If you cannot determine calories, set calories to 0 and explain why in reasoning
 ### 5. Required Environment Variables
 
 ```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+# Database (Prisma)
+DATABASE_URL=postgresql://user@localhost:5432/fitness_chatbot
 
-# Twilio
-TWILIO_ACCOUNT_SID=your_twilio_account_sid
-TWILIO_AUTH_TOKEN=your_twilio_auth_token
-TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886  # Your Twilio WhatsApp number
+# Telegram Bot
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 
 # Anthropic Claude
 ANTHROPIC_API_KEY=your_claude_api_key
-
-# Security
-TWILIO_WEBHOOK_SECRET=your_webhook_secret  # Optional: for signature validation
 
 # App
 NEXT_PUBLIC_APP_URL=http://localhost:3000  # Change to production URL
@@ -230,8 +229,10 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000  # Change to production URL
     "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "@supabase/supabase-js": "^2.39.0",
-    "twilio": "^4.20.0",
+    "@prisma/client": "^6.0.0",
+    "@prisma/adapter-pg": "^6.0.0",
+    "pg": "^8.11.0",
+    "node-telegram-bot-api": "^0.66.0",
     "@anthropic-ai/sdk": "^0.10.0",
     "zod": "^3.22.0",
     "class-variance-authority": "^0.7.0",
@@ -243,6 +244,8 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000  # Change to production URL
     "@types/node": "^20.0.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
+    "@types/node-telegram-bot-api": "^0.64.0",
+    "prisma": "^6.0.0",
     "typescript": "^5.0.0",
     "tailwindcss": "^3.4.0",
     "postcss": "^8.4.0",
@@ -303,7 +306,7 @@ Bot: "🤖 Calorie Tracker Help
 
 ### 8. Security & Validation Considerations
 
-1. **Twilio Signature Validation**: Verify all webhook requests are from Twilio
+1. **Webhook Security**: Optionally verify webhook requests using secret token
 2. **Rate Limiting**: Prevent spam/abuse (use Next.js middleware or Vercel rate limiting)
 3. **Input Sanitization**: Clean user messages before storing
 4. **Claude API Safeguards**:
@@ -332,9 +335,9 @@ Bot: "🤖 Calorie Tracker Help
 4. Test database operations locally
 
 ### Phase 3: External Service Integration
-1. Set up Twilio client (`src/lib/twilio.ts`)
+1. Set up Telegram bot client (`src/lib/telegram.ts`)
 2. Set up Claude API client (`src/lib/claude.ts`)
-3. Create Twilio WhatsApp sandbox for testing
+3. Create Telegram bot via @BotFather
 4. Test Claude API with sample prompts
 
 ### Phase 4: Core Business Logic
@@ -345,9 +348,9 @@ Bot: "🤖 Calorie Tracker Help
 
 ### Phase 5: Webhook Handler
 1. Create webhook API route (`src/app/api/webhook/route.ts`)
-2. Implement Twilio signature validation
+2. Parse Telegram updates (JSON)
 3. Integrate message parser and routing logic
-4. Implement response sending via Twilio
+4. Implement response sending via Telegram Bot API
 5. Add error handling and logging
 
 ### Phase 6: Query Features
@@ -358,11 +361,12 @@ Bot: "🤖 Calorie Tracker Help
 
 ### Phase 7: Testing & Deployment
 1. Create test endpoint for local testing
-2. Use ngrok to expose local webhook for Twilio
-3. Test end-to-end flows with real WhatsApp messages
-4. Deploy to Vercel
-5. Configure Twilio webhook to production URL
-6. Final testing in production
+2. Use ngrok to expose local webhook for Telegram
+3. Set webhook URL using Telegram Bot API
+4. Test end-to-end flows with real Telegram messages
+5. Deploy to Vercel
+6. Configure Telegram webhook to production URL
+7. Final testing in production
 
 ---
 
@@ -387,21 +391,21 @@ Bot: "🤖 Calorie Tracker Help
 
 ### Integration Testing (with ngrok)
 1. Expose local webhook using ngrok: `ngrok http 3000`
-2. Configure Twilio webhook to ngrok URL
-3. Send test messages from WhatsApp:
+2. Set Telegram webhook to ngrok URL using `/api/telegram/setup`
+3. Send test messages from Telegram:
    - "450 calories"
    - "100g chicken breast"
    - "today"
    - "help"
-4. Verify responses received in WhatsApp
-5. Check database entries in Supabase
+4. Verify responses received in Telegram
+5. Check database entries in local PostgreSQL
 
 ### Production Testing
 1. Deploy to Vercel
-2. Update Twilio webhook to production URL
+2. Update Telegram webhook to production URL
 3. Test all conversation flows
 4. Monitor logs for errors
-5. Verify Supabase database updates
+5. Verify database updates
 
 ### End-to-End Test Scenario
 ```
@@ -409,20 +413,21 @@ Bot: "🤖 Calorie Tracker Help
 2. Send: "300 calories" → Verify logged + total shown
 3. Send: "2 slices of pizza" → Verify AI estimate + logged
 4. Send: "today" → Verify total shows both entries
-5. Check Supabase dashboard → Verify 2 entries in calorie_entries table
+5. Check database → Verify 2 entries in calorie_entries table
 ```
 
 ---
 
 ## Critical Files to Create
 
-1. **Migrations**: `supabase/migrations/001_initial_schema.sql`
-2. **Webhook Handler**: `src/app/api/webhook/route.ts`
-3. **Database Clients**: `src/lib/supabase.ts`, `src/lib/db/users.ts`, `src/lib/db/calories.ts`
-4. **Service Integrations**: `src/lib/twilio.ts`, `src/lib/claude.ts`
-5. **Business Logic**: `src/lib/services/messageParser.ts`, `src/lib/services/calorieEstimator.ts`, `src/lib/services/responseGenerator.ts`
-6. **Configuration**: `.env.example`, `next.config.ts`, `tsconfig.json`
-7. **Documentation**: `README.md`
+1. **Prisma Schema**: `prisma/schema.prisma`
+2. **Migrations**: `prisma/migrations/`
+3. **Webhook Handler**: `src/app/api/webhook/route.ts`
+4. **Database Clients**: `src/lib/prisma.ts`, `src/lib/db/users.ts`, `src/lib/db/calories.ts`
+5. **Service Integrations**: `src/lib/telegram.ts`, `src/lib/claude.ts`
+6. **Business Logic**: `src/lib/services/messageParser.ts`, `src/lib/services/calorieEstimator.ts`, `src/lib/services/responseGenerator.ts`
+7. **Configuration**: `.env.example`, `next.config.ts`, `tsconfig.json`
+8. **Documentation**: `README.md`
 
 ---
 
@@ -447,7 +452,7 @@ Bot: "🤖 Calorie Tracker Help
 - **Claude Prompt Engineering**: Iterate on prompt to improve accuracy
 - **Supabase RLS**: Add Row Level Security policies to protect user data
 - **Cost Management**: Monitor Claude API usage (cache common foods if needed)
-- **Twilio Costs**: WhatsApp messages have per-message costs, factor into planning
+- **Telegram Costs**: Telegram Bot API is completely free
 - **shadcn/ui**: Already set up for future dashboard features, even though not needed immediately
 
 ---

@@ -33,9 +33,25 @@ export function parseMessage(message: string): ParsedMessage {
     };
   }
 
-  // Default to food description
+  // Check for casual conversation/greetings
+  if (isCasualChat(trimmedMessage)) {
+    return {
+      type: MessageType.CASUAL_CHAT,
+      description: message,
+    };
+  }
+
+  // Check if message looks like food (has food-related words or measurements)
+  if (isFoodRelated(message)) {
+    return {
+      type: MessageType.FOOD_DESCRIPTION,
+      description: message,
+    };
+  }
+
+  // Default to casual chat for anything else
   return {
-    type: MessageType.FOOD_DESCRIPTION,
+    type: MessageType.CASUAL_CHAT,
     description: message,
   };
 }
@@ -106,6 +122,72 @@ function extractDirectCalories(message: string): number | null {
   }
 
   return null;
+}
+
+/**
+ * Check if the message is casual chat (greetings, thanks, etc.)
+ * @param message - Lowercase trimmed message
+ * @returns true if casual chat
+ */
+function isCasualChat(message: string): boolean {
+  const casualKeywords = [
+    'hi', 'hello', 'hey', 'sup', 'yo',
+    'thanks', 'thank you', 'thx',
+    'bye', 'goodbye', 'see you',
+    'good morning', 'good night', 'good evening',
+    'how are you', 'whats up', "what's up",
+    'nice', 'cool', 'awesome', 'great',
+    'ok', 'okay', 'sure', 'yes', 'no',
+    'lol', 'haha', 'hehe',
+  ];
+
+  // Check for short messages (likely greetings/casual)
+  if (message.length < 25) {
+    return casualKeywords.some((keyword) =>
+      message === keyword ||
+      message.startsWith(keyword + ' ') ||
+      message.startsWith(keyword + ',') ||
+      message.startsWith(keyword + '!')
+    );
+  }
+
+  return false;
+}
+
+/**
+ * Check if the message is food-related
+ * @param message - Original message
+ * @returns true if likely food description
+ */
+function isFoodRelated(message: string): boolean {
+  const lowerMessage = message.toLowerCase();
+
+  // Check for measurement units (strong indicator of food)
+  const measurements = [
+    'gram', 'g ', 'kg', 'kilogram',
+    'ml', 'liter', 'oz', 'pound', 'lb',
+    'cup', 'tbsp', 'tsp', 'tablespoon', 'teaspoon',
+    'slice', 'piece', 'bowl', 'plate', 'serving',
+  ];
+
+  if (measurements.some(unit => lowerMessage.includes(unit))) {
+    return true;
+  }
+
+  // Check for food-related words
+  const foodKeywords = [
+    'eat', 'ate', 'food', 'meal', 'breakfast', 'lunch', 'dinner', 'snack',
+    'rice', 'chicken', 'beef', 'pork', 'fish', 'egg', 'bread', 'pasta',
+    'pizza', 'burger', 'sandwich', 'salad', 'soup', 'noodle',
+    'fruit', 'vegetable', 'apple', 'banana', 'orange',
+    'fried', 'grilled', 'boiled', 'steamed', 'baked',
+    'drink', 'water', 'juice', 'coffee', 'tea', 'milk',
+  ];
+
+  const matchCount = foodKeywords.filter(keyword => lowerMessage.includes(keyword)).length;
+
+  // If message contains multiple food keywords, it's likely food-related
+  return matchCount >= 2 || (matchCount >= 1 && message.length < 50);
 }
 
 /**

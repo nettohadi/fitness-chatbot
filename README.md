@@ -1,58 +1,75 @@
-# WhatsApp Calorie Tracker Bot 🤖
+# Telegram Calorie Tracking Chatbot
 
-A WhatsApp chatbot that helps you track your daily calorie intake using AI-powered food recognition. Built with Next.js, Supabase, Twilio, and Anthropic Claude.
+A Telegram chatbot that helps you track your daily calorie intake using AI-powered calorie estimation with Claude AI.
 
 ## Features
 
 - **Direct Calorie Logging**: Send "450 calories" to log calories directly
-- **AI-Powered Estimation**: Describe your food like "100g chicken breast" and let Claude AI estimate the calories
-- **Daily & Weekly Summaries**: Check your progress with "today" or "week" commands
-- **Automatic User Management**: Users are automatically created based on their WhatsApp phone number
-- **Real-time Tracking**: All entries are stored in PostgreSQL via Supabase
+- **AI-Powered Estimation**: Describe food like "100g grilled chicken" and Claude AI estimates the calories
+- **Daily/Weekly Summaries**: Check your progress with "today" or "week" commands
+- **Easy to Use**: Just chat with the bot naturally
+- **Free Messaging**: Telegram Bot API is completely free (no per-message costs)
 
 ## Tech Stack
 
 - **Framework**: Next.js 15 (App Router) with TypeScript
-- **Database**: PostgreSQL (Supabase)
-- **WhatsApp Integration**: Twilio WhatsApp API
+- **Database**: PostgreSQL (local) / Supabase (production)
+- **ORM**: Prisma with PostgreSQL adapter
+- **Messaging**: Telegram Bot API
 - **AI**: Anthropic Claude API
 - **Styling**: Tailwind CSS
 - **UI Components**: shadcn/ui (for future dashboard features)
-- **Validation**: Zod
 
 ## Prerequisites
 
-Before you begin, ensure you have:
+- Node.js 18+
+- PostgreSQL (local or Supabase)
+- Telegram account
+- Anthropic Claude API key
 
-1. **Node.js** 18+ installed
-2. **Supabase Account** (free tier works)
-3. **Twilio Account** with WhatsApp enabled
-4. **Anthropic API Key** for Claude access
-5. **ngrok** (for local development testing)
-
-## Getting Started
+## Quick Start
 
 ### 1. Clone and Install
 
 ```bash
-# Install dependencies
+git clone <your-repo-url>
+cd fitness-chatbot
 npm install
 ```
 
-### 2. Set Up Environment Variables
+### 2. Database Setup
 
-Create a `.env.local` file in the root directory:
+#### Local PostgreSQL
+
+```bash
+# Install PostgreSQL (macOS)
+brew install postgresql@14
+brew services start postgresql@14
+
+# Create database
+createdb fitness_chatbot
+
+# Run migrations
+npx prisma migrate dev
+```
+
+### 3. Create Telegram Bot
+
+1. Open Telegram and search for [@BotFather](https://t.me/botfather)
+2. Send `/newbot` command
+3. Follow the prompts to create your bot
+4. Copy the bot token (looks like: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`)
+
+### 4. Environment Variables
+
+Copy `.env.example` to `.env.local` and fill in your values:
 
 ```env
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+# Database
+DATABASE_URL=postgresql://your_user@localhost:5432/fitness_chatbot
 
-# Twilio
-TWILIO_ACCOUNT_SID=your_twilio_account_sid
-TWILIO_AUTH_TOKEN=your_twilio_auth_token
-TWILIO_WHATSAPP_NUMBER=whatsapp:+14155238886
+# Telegram Bot
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 
 # Anthropic Claude
 ANTHROPIC_API_KEY=your_claude_api_key
@@ -61,178 +78,144 @@ ANTHROPIC_API_KEY=your_claude_api_key
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-### 3. Set Up Supabase Database
-
-1. Create a new Supabase project at [supabase.com](https://supabase.com)
-2. Go to the SQL Editor
-3. Run the migration file: `supabase/migrations/001_initial_schema.sql`
-
-Alternatively, if you have Supabase CLI installed:
-
-```bash
-# Initialize Supabase (if not already done)
-npx supabase init
-
-# Link to your project
-npx supabase link --project-ref your-project-ref
-
-# Push migrations
-npx supabase db push
-```
-
-### 4. Set Up Twilio WhatsApp
-
-1. Sign up at [twilio.com](https://www.twilio.com)
-2. Get a Twilio WhatsApp number or use the sandbox
-3. Configure the webhook URL (we'll do this after starting the server)
-
-### 5. Get Anthropic API Key
-
-1. Sign up at [anthropic.com](https://www.anthropic.com)
-2. Generate an API key from the console
-3. Add it to your `.env.local` file
-
-### 6. Run the Development Server
+### 5. Run Development Server
 
 ```bash
 npm run dev
 ```
 
-The server will start at [http://localhost:3000](http://localhost:3000)
+## Testing Locally
 
-### 7. Expose Local Server with ngrok
+### Option 1: Using ngrok (recommended for real Telegram testing)
 
-In a new terminal:
+1. Install ngrok:
+```bash
+brew install ngrok
+```
 
+2. Expose your local server:
 ```bash
 ngrok http 3000
 ```
 
-Copy the HTTPS URL (e.g., `https://abc123.ngrok.io`)
-
-### 8. Configure Twilio Webhook
-
-1. Go to your Twilio Console
-2. Navigate to Messaging → Settings → WhatsApp sandbox settings
-3. Set the "When a message comes in" webhook to: `https://your-ngrok-url.ngrok.io/api/webhook`
-4. Save the configuration
-
-## Usage
-
-### Send Messages via WhatsApp
-
-Join your Twilio WhatsApp sandbox and start sending messages:
-
-#### Examples
-
-**Get Help:**
-```
-help
-```
-
-**Log Direct Calories:**
-```
-450 calories
-320 cal
-150.5 kcal
-```
-
-**Describe Food (AI Estimation):**
-```
-100g grilled chicken breast
-2 slices of pizza
-1 bowl of rice with chicken
-medium apple
-```
-
-**Check Today's Total:**
-```
-today
-total today
-```
-
-**Check This Week's Total:**
-```
-week
-this week
-weekly total
-```
-
-## API Endpoints
-
-### POST /api/webhook
-
-Main webhook endpoint for Twilio WhatsApp messages.
-
-**Request (from Twilio):**
-- Content-Type: `application/x-www-form-urlencoded`
-- Body: Twilio webhook payload
-
-**Response:**
-- Status: 200 OK
-
-### POST /api/test
-
-Test endpoint for local development (simulates Twilio webhook).
-
-**Request:**
-```json
-{
-  "phoneNumber": "+1234567890",
-  "message": "450 calories"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Test message sent successfully",
-  "phoneNumber": "+1234567890",
-  "messageBody": "450 calories"
-}
-```
-
-**Test with curl:**
+3. Set webhook URL:
 ```bash
+curl -X POST http://localhost:3000/api/telegram/setup \
+  -H "Content-Type: application/json" \
+  -d '{"webhookUrl": "https://your-ngrok-url.ngrok.io/api/webhook"}'
+```
+
+4. Start chatting with your bot on Telegram!
+
+### Option 2: Using Test Endpoint (no Telegram needed)
+
+```bash
+# Test with direct calorie input
 curl -X POST http://localhost:3000/api/test \
   -H "Content-Type: application/json" \
-  -d '{"phoneNumber": "+1234567890", "message": "help"}'
+  -d '{"chatId": 123456789, "message": "450 calories"}'
+
+# Test with food description
+curl -X POST http://localhost:3000/api/test \
+  -H "Content-Type: application/json" \
+  -d '{"chatId": 123456789, "message": "100g grilled chicken"}'
+
+# Test query commands
+curl -X POST http://localhost:3000/api/test \
+  -H "Content-Type: application/json" \
+  -d '{"chatId": 123456789, "message": "today"}'
+```
+
+## Usage Examples
+
+### Direct Calorie Input
+```
+You: 450 calories
+Bot: ✅ Logged 450 calories
+     📊 Today's total: 450 cal
+```
+
+### Food Description (AI Estimation)
+```
+You: 100g grilled chicken breast
+Bot: ✅ Estimated ~165 calories for "100g grilled chicken breast"
+     💡 Grilled chicken breast is lean protein, approximately 165 cal per 100g
+     📊 Today's total: 615 cal
+```
+
+### Daily Summary
+```
+You: today
+Bot: 📊 Today's total: 615 calories
+     Entries: 2
+
+     Details:
+     • 450 cal - Direct entry
+     • 165 cal - 100g grilled chicken breast 🤖
+```
+
+### Weekly Summary
+```
+You: week
+Bot: 📊 This week's total: 4,320 calories
+     Entries: 15
+     Average per day: 617 cal
+
+     Daily breakdown:
+     • Mon, Jan 8: 615 cal (2 entries)
+     • Tue, Jan 9: 720 cal (3 entries)
+     ...
+```
+
+### Help Command
+```
+You: help
+Bot: 🤖 Calorie Tracker Help
+
+     Track calories:
+     • Send direct: "450 calories"
+     • Describe food: "2 slices pizza"
+     • Include weight: "100g chicken breast"
+
+     Check totals:
+     • "today" - Today's total
+     • "week" - This week's total
+
+     Commands:
+     • "help" - Show this message
+
+     Just text me what you ate, and I'll track it for you!
 ```
 
 ## Project Structure
 
 ```
 fitness-chatbot/
+├── prisma/
+│   ├── schema.prisma              # Database schema
+│   └── migrations/                # Database migrations
 ├── src/
 │   ├── app/
 │   │   ├── api/
-│   │   │   ├── webhook/route.ts      # Main webhook handler
-│   │   │   └── test/route.ts         # Test endpoint
+│   │   │   ├── webhook/          # Telegram webhook handler
+│   │   │   ├── telegram/setup/   # Webhook setup endpoint
+│   │   │   └── test/             # Testing endpoint
 │   │   ├── layout.tsx
-│   │   ├── page.tsx                  # Landing page
-│   │   └── globals.css
+│   │   └── page.tsx
 │   ├── components/
-│   │   └── ui/                       # shadcn/ui components
+│   │   └── ui/                   # shadcn/ui components
 │   ├── lib/
-│   │   ├── supabase.ts               # Supabase client
-│   │   ├── twilio.ts                 # Twilio client
-│   │   ├── claude.ts                 # Claude API client
-│   │   ├── utils.ts                  # Utility functions
-│   │   ├── db/
-│   │   │   ├── users.ts              # User operations
-│   │   │   └── calories.ts           # Calorie operations
-│   │   └── services/
-│   │       ├── messageParser.ts      # Message classification
-│   │       ├── calorieEstimator.ts   # AI calorie estimation
-│   │       └── responseGenerator.ts  # Response formatting
+│   │   ├── prisma.ts             # Prisma client
+│   │   ├── telegram.ts           # Telegram bot client
+│   │   ├── claude.ts             # Claude API client
+│   │   ├── db/                   # Database operations
+│   │   └── services/             # Business logic
 │   └── types/
-│       └── index.ts                  # TypeScript types
-├── supabase/
-│   └── migrations/
-│       └── 001_initial_schema.sql    # Database schema
-├── PLAN.md                           # Implementation plan
-└── README.md                         # This file
+│       └── index.ts
+├── .env.local                    # Environment variables
+├── .env.example                  # Example environment file
+├── PLAN.md                       # Implementation plan
+└── README.md                     # This file
 ```
 
 ## Database Schema
@@ -240,7 +223,7 @@ fitness-chatbot/
 ### users
 ```sql
 id              UUID PRIMARY KEY
-phone_number    VARCHAR(20) UNIQUE
+phone_number    VARCHAR(20) UNIQUE  -- Stores Telegram chat ID
 created_at      TIMESTAMP
 updated_at      TIMESTAMP
 ```
@@ -260,93 +243,116 @@ created_at        TIMESTAMP
 ### conversation_logs (optional)
 ```sql
 id             UUID PRIMARY KEY
-phone_number   VARCHAR(20)
+phone_number   VARCHAR(20)  -- Stores Telegram chat ID
 message_type   VARCHAR(20)
 message_body   TEXT
 created_at     TIMESTAMP
 ```
 
+## API Endpoints
+
+### POST /api/webhook
+Main webhook endpoint for Telegram updates.
+
+**Request (from Telegram):**
+```json
+{
+  "update_id": 123456789,
+  "message": {
+    "message_id": 1,
+    "from": { "id": 123456789, "first_name": "User" },
+    "chat": { "id": 123456789, "type": "private" },
+    "date": 1641024000,
+    "text": "450 calories"
+  }
+}
+```
+
+### POST /api/telegram/setup
+Set Telegram webhook URL.
+
+**Request:**
+```json
+{
+  "webhookUrl": "https://your-domain.com/api/webhook"
+}
+```
+
+### GET /api/telegram/setup
+Get current webhook info.
+
+### DELETE /api/telegram/setup
+Remove webhook.
+
+### POST /api/test
+Test endpoint for local development.
+
+**Request:**
+```json
+{
+  "chatId": 123456789,
+  "message": "450 calories"
+}
+```
+
 ## Deployment
 
-### Deploy to Vercel
+### Vercel (Recommended)
 
 1. Push your code to GitHub
-2. Import the project to Vercel
-3. Add environment variables in Vercel dashboard
+2. Import project on [vercel.com](https://vercel.com)
+3. Add environment variables:
+   - `DATABASE_URL` (use Supabase connection string for production)
+   - `TELEGRAM_BOT_TOKEN`
+   - `ANTHROPIC_API_KEY`
 4. Deploy
-5. Update Twilio webhook URL to your Vercel domain
+5. Set webhook to production URL:
 
 ```bash
-# Or use Vercel CLI
-vercel
-```
-
-### Update Twilio Webhook
-
-After deployment, update your Twilio webhook URL to:
-```
-https://your-app.vercel.app/api/webhook
-```
-
-## Testing
-
-### Local Testing with Test Endpoint
-
-```bash
-# Test help command
-curl -X POST http://localhost:3000/api/test \
+curl -X POST https://your-app.vercel.app/api/telegram/setup \
   -H "Content-Type: application/json" \
-  -d '{"phoneNumber": "+1234567890", "message": "help"}'
-
-# Test direct calorie entry
-curl -X POST http://localhost:3000/api/test \
-  -H "Content-Type: application/json" \
-  -d '{"phoneNumber": "+1234567890", "message": "450 calories"}'
-
-# Test AI estimation
-curl -X POST http://localhost:3000/api/test \
-  -H "Content-Type: application/json" \
-  -d '{"phoneNumber": "+1234567890", "message": "100g chicken breast"}'
-
-# Test daily summary
-curl -X POST http://localhost:3000/api/test \
-  -H "Content-Type: application/json" \
-  -d '{"phoneNumber": "+1234567890", "message": "today"}'
+  -d '{"webhookUrl": "https://your-app.vercel.app/api/webhook"}'
 ```
-
-### Integration Testing with WhatsApp
-
-1. Start the development server
-2. Run ngrok to expose your local server
-3. Configure Twilio webhook to ngrok URL
-4. Send test messages from WhatsApp
-5. Verify responses and check Supabase database
 
 ## Troubleshooting
 
-### Messages not received
+### Build Errors
 
-- Check ngrok is running and webhook URL is correct in Twilio
-- Verify all environment variables are set
-- Check Twilio console for webhook errors
+```bash
+npm run build
+```
 
-### Database errors
+### Database Issues
 
-- Ensure migrations have been run
-- Verify Supabase connection string is correct
-- Check Row Level Security policies in Supabase
+Reset database:
+```bash
+npx prisma migrate reset
+npx prisma migrate dev
+```
 
-### AI estimation not working
+View database with Prisma Studio:
+```bash
+npx prisma studio
+```
 
-- Verify Anthropic API key is valid
-- Check Claude API rate limits
-- Look at server logs for error details
+### Webhook Issues
 
-### Twilio webhook validation fails
+Check webhook status:
+```bash
+curl http://localhost:3000/api/telegram/setup
+```
 
-- Ensure you're using the correct auth token
-- Check that the webhook URL matches exactly
-- Verify request is coming from Twilio
+Delete webhook:
+```bash
+curl -X DELETE http://localhost:3000/api/telegram/setup
+```
+
+### Common Issues
+
+- **Messages not received**: Check webhook is set correctly
+- **Database errors**: Ensure migrations have been run
+- **AI estimation not working**: Verify Anthropic API key is valid
+- **Bot not responding**: Check server logs for errors
 
 ## Future Enhancements
 
@@ -358,6 +364,7 @@ curl -X POST http://localhost:3000/api/test \
 - [ ] Multi-language support
 - [ ] Image recognition for food photos
 - [ ] Export data to CSV/PDF
+- [ ] Voice message support
 
 ## Contributing
 
@@ -373,4 +380,4 @@ For issues and questions, please open an issue on GitHub.
 
 ---
 
-Built with ❤️ using Next.js, Supabase, Twilio, and Claude AI
+Built with Next.js, Prisma, Telegram Bot API, and Claude AI
