@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../supabase';
+import prisma from '../prisma';
 import type { User, DbResult } from '@/types';
 
 /**
@@ -10,21 +10,11 @@ export async function findUserByPhone(
   phoneNumber: string
 ): Promise<DbResult<User>> {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('users')
-      .select('*')
-      .eq('phone_number', phoneNumber)
-      .single();
+    const user = await prisma.user.findUnique({
+      where: { phoneNumber },
+    });
 
-    if (error) {
-      // User not found is not an error in this case
-      if (error.code === 'PGRST116') {
-        return { success: true, data: undefined };
-      }
-      throw error;
-    }
-
-    return { success: true, data: data as User };
+    return { success: true, data: user ? (user as unknown as User) : undefined };
   } catch (error) {
     console.error('Error finding user:', error);
     return {
@@ -43,15 +33,11 @@ export async function createUser(
   phoneNumber: string
 ): Promise<DbResult<User>> {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('users')
-      .insert([{ phone_number: phoneNumber }])
-      .select()
-      .single();
+    const user = await prisma.user.create({
+      data: { phoneNumber },
+    });
 
-    if (error) throw error;
-
-    return { success: true, data: data as User };
+    return { success: true, data: user as unknown as User };
   } catch (error) {
     console.error('Error creating user:', error);
     return {
@@ -100,15 +86,18 @@ export async function findOrCreateUser(
  */
 export async function getUserById(userId: string): Promise<DbResult<User>> {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
 
-    if (error) throw error;
+    if (!user) {
+      return {
+        success: false,
+        error: 'User not found',
+      };
+    }
 
-    return { success: true, data: data as User };
+    return { success: true, data: user as unknown as User };
   } catch (error) {
     console.error('Error getting user by ID:', error);
     return {

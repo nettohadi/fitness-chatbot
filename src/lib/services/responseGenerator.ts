@@ -161,10 +161,10 @@ function groupEntriesByDate(
  */
 function formatDate(dateString: string): string {
   const date = new Date(dateString + 'T00:00:00');
-  const options: Intl.DateTimeFormat = {
+  const options: Intl.DateTimeFormatOptions = {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
   };
-  return date.toLocaleDateString('en-US', options as Intl.DateTimeFormatOptions);
+  return date.toLocaleDateString('en-US', options);
 }

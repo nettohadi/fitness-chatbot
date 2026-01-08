@@ -3,13 +3,10 @@ import Anthropic from '@anthropic-ai/sdk';
 // Environment variables
 const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
 
-if (!anthropicApiKey) {
-  throw new Error('Missing ANTHROPIC_API_KEY environment variable');
-}
-
-// Create Anthropic client
-export const anthropic = new Anthropic({
-  apiKey: anthropicApiKey,
+// Create Anthropic client with explicit type
+// Will throw error at runtime if API key is not set
+export const anthropic: Anthropic = new Anthropic({
+  apiKey: anthropicApiKey || 'sk-ant-placeholder',
 });
 
 // Default model to use

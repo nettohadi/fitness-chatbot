@@ -18,6 +18,11 @@ export async function estimateCaloriesWithClaude(
   foodDescription: string
 ): Promise<ClaudeCalorieEstimate> {
   try {
+    // Check if API key is set at runtime
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY is not configured');
+    }
+
     const prompt = buildCalorieEstimationPrompt(foodDescription);
 
     const message = await anthropic.messages.create({

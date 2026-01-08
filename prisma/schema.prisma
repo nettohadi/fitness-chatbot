@@ -1,0 +1,51 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phoneNumber   String   @unique @map("phone_number") @db.VarChar(20)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  calorieEntries CalorieEntry[]
+
+  @@index([phoneNumber], name: "idx_users_phone")
+  @@map("users")
+}
+
+model CalorieEntry {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  calories        Decimal  @db.Decimal(10, 2)
+  foodDescription String?  @map("food_description") @db.Text
+  estimatedByAi   Boolean  @default(false) @map("estimated_by_ai")
+  entryDate       DateTime @default(dbgenerated("CURRENT_DATE")) @map("entry_date") @db.Date
+  entryTime       DateTime @default(now()) @map("entry_time") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, entryDate], name: "idx_calorie_entries_user_date")
+  @@index([createdAt], name: "idx_calorie_entries_created")
+  @@map("calorie_entries")
+}
+
+model ConversationLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phoneNumber  String   @map("phone_number") @db.VarChar(20)
+  messageType  String?  @map("message_type") @db.VarChar(20)
+  messageBody  String?  @map("message_body") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([phoneNumber], name: "idx_conversation_logs_phone")
+  @@index([createdAt], name: "idx_conversation_logs_created")
+  @@map("conversation_logs")
+}

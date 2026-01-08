@@ -1,4 +1,4 @@
-import { supabaseAdmin } from '../supabase';
+import prisma from '../prisma';
 import type { CalorieEntry, DbResult, CalorieSummary } from '@/types';
 
 /**
@@ -16,22 +16,16 @@ export async function addCalorieEntry(
   estimatedByAi: boolean = false
 ): Promise<DbResult<CalorieEntry>> {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('calorie_entries')
-      .insert([
-        {
-          user_id: userId,
-          calories,
-          food_description: foodDescription,
-          estimated_by_ai: estimatedByAi,
-        },
-      ])
-      .select()
-      .single();
+    const entry = await prisma.calorieEntry.create({
+      data: {
+        userId,
+        calories,
+        foodDescription,
+        estimatedByAi,
+      },
+    });
 
-    if (error) throw error;
-
-    return { success: true, data: data as CalorieEntry };
+    return { success: true, data: entry as unknown as CalorieEntry };
   } catch (error) {
     console.error('Error adding calorie entry:', error);
     return {
@@ -52,16 +46,17 @@ export async function getEntriesByDate(
   date: string
 ): Promise<DbResult<CalorieEntry[]>> {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('calorie_entries')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('entry_date', date)
-      .order('entry_time', { ascending: false });
+    const entries = await prisma.calorieEntry.findMany({
+      where: {
+        userId,
+        entryDate: new Date(date),
+      },
+      orderBy: {
+        entryTime: 'desc',
+      },
+    });
 
-    if (error) throw error;
-
-    return { success: true, data: (data as CalorieEntry[]) || [] };
+    return { success: true, data: entries as unknown as CalorieEntry[] };
   } catch (error) {
     console.error('Error getting entries by date:', error);
     return {
@@ -84,18 +79,21 @@ export async function getEntriesByDateRange(
   endDate: string
 ): Promise<DbResult<CalorieEntry[]>> {
   try {
-    const { data, error } = await supabaseAdmin
-      .from('calorie_entries')
-      .select('*')
-      .eq('user_id', userId)
-      .gte('entry_date', startDate)
-      .lte('entry_date', endDate)
-      .order('entry_date', { ascending: false })
-      .order('entry_time', { ascending: false });
+    const entries = await prisma.calorieEntry.findMany({
+      where: {
+        userId,
+        entryDate: {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        },
+      },
+      orderBy: [
+        { entryDate: 'desc' },
+        { entryTime: 'desc' },
+      ],
+    });
 
-    if (error) throw error;
-
-    return { success: true, data: (data as CalorieEntry[]) || [] };
+    return { success: true, data: entries as unknown as CalorieEntry[] };
   } catch (error) {
     console.error('Error getting entries by date range:', error);
     return {
@@ -118,8 +116,18 @@ export async function getDailySummary(
   try {
     const entriesResult = await getEntriesByDate(userId, date);
 
-    if (!entriesResult.success || !entriesResult.data) {
-      return entriesResult as DbResult<CalorieSummary>;
+    if (!entriesResult.success) {
+      return {
+        success: false,
+        error: entriesResult.error,
+      };
+    }
+
+    if (!entriesResult.data) {
+      return {
+        success: false,
+        error: 'No data returned',
+      };
     }
 
     const entries = entriesResult.data;
@@ -162,8 +170,18 @@ export async function getWeeklySummary(
   try {
     const entriesResult = await getEntriesByDateRange(userId, startDate, endDate);
 
-    if (!entriesResult.success || !entriesResult.data) {
-      return entriesResult as DbResult<CalorieSummary>;
+    if (!entriesResult.success) {
+      return {
+        success: false,
+        error: entriesResult.error,
+      };
+    }
+
+    if (!entriesResult.data) {
+      return {
+        success: false,
+        error: 'No data returned',
+      };
     }
 
     const entries = entriesResult.data;
