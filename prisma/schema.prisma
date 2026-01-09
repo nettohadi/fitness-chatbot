@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,43 +6,67 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  phoneNumber   String   @unique @map("phone_number") @db.VarChar(20)
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model calorie_entries {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String   @db.Uuid
+  calories         Decimal  @db.Decimal(10, 2)
+  food_description String?
+  estimated_by_ai  Boolean  @default(false)
+  entry_date       DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
+  entry_time       DateTime @default(now()) @db.Timestamptz(6)
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  users            users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
-  calorieEntries CalorieEntry[]
-
-  @@index([phoneNumber], name: "idx_users_phone")
-  @@map("users")
+  @@index([created_at], map: "idx_calorie_entries_created")
+  @@index([user_id, entry_date], map: "idx_calorie_entries_user_date")
 }
 
-model CalorieEntry {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId          String   @map("user_id") @db.Uuid
-  calories        Decimal  @db.Decimal(10, 2)
-  foodDescription String?  @map("food_description") @db.Text
-  estimatedByAi   Boolean  @default(false) @map("estimated_by_ai")
-  entryDate       DateTime @default(dbgenerated("CURRENT_DATE")) @map("entry_date") @db.Date
-  entryTime       DateTime @default(now()) @map("entry_time") @db.Timestamptz(6)
-  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId, entryDate], name: "idx_calorie_entries_user_date")
-  @@index([createdAt], name: "idx_calorie_entries_created")
-  @@map("calorie_entries")
-}
-
-model ConversationLog {
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model conversation_logs {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  phoneNumber  String   @map("phone_number") @db.VarChar(20)
-  messageType  String?  @map("message_type") @db.VarChar(20)
-  messageBody  String?  @map("message_body") @db.Text
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  phone_number String   @db.VarChar(20)
+  message_type String?  @db.VarChar(20)
+  message_body String?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
 
-  @@index([phoneNumber], name: "idx_conversation_logs_phone")
-  @@index([createdAt], name: "idx_conversation_logs_created")
-  @@map("conversation_logs")
+  @@index([created_at], map: "idx_conversation_logs_created")
+  @@index([phone_number], map: "idx_conversation_logs_phone")
+}
+
+model exercise_entries {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id          String   @db.Uuid
+  exercise_type    String   @db.VarChar(100)
+  duration_minutes Int
+  calories_burned  Decimal  @db.Decimal(8, 2)
+  met_value        Decimal? @db.Decimal(4, 2)
+  entry_date       DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
+  entry_time       DateTime @default(now()) @db.Timestamptz(6)
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  users            users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, entry_date], map: "idx_exercise_entries_user_date")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model users {
+  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phone_number       String             @unique @db.VarChar(20)
+  created_at         DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime           @default(now()) @db.Timestamptz(6)
+  activity_level     String?            @db.VarChar(20)
+  age                Int?
+  bmr                Decimal?           @db.Decimal(6, 2)
+  daily_calorie_goal Decimal?           @db.Decimal(6, 2)
+  gender             String?            @db.VarChar(10)
+  height_cm          Decimal?           @db.Decimal(5, 2)
+  preferred_language String?            @db.VarChar(10)
+  profile_completed  Boolean            @default(false)
+  tdee               Decimal?           @db.Decimal(6, 2)
+  weight_kg          Decimal?           @db.Decimal(5, 2)
+  calorie_entries    calorie_entries[]
+  exercise_entries   exercise_entries[]
+
+  @@index([phone_number], map: "idx_users_phone")
 }

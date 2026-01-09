@@ -96,3 +96,26 @@ export async function deleteWebhook(): Promise<{ success: boolean; error?: strin
     };
   }
 }
+
+/**
+ * Send chat action (typing indicator)
+ * @param chatId - Telegram chat ID
+ * @param action - Action type ('typing', 'upload_photo', etc.)
+ * @returns Promise with success status
+ */
+export async function sendChatAction(
+  chatId: number | string,
+  action: 'typing' | 'upload_photo' | 'record_video' | 'upload_video' | 'record_voice' | 'upload_voice' | 'upload_document' | 'choose_sticker' | 'find_location' | 'record_video_note' | 'upload_video_note'
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const bot = getTelegramBot();
+    await bot.sendChatAction(chatId, action);
+    return { success: true };
+  } catch (error) {
+    console.error('Error sending chat action:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}

@@ -1,28 +1,51 @@
 // Database Models
 export interface User {
   id: string;
-  phone_number: string;
-  created_at: string;
-  updated_at: string;
+  phoneNumber: string;
+  createdAt: string;
+  updatedAt: string;
+  // Fitness Profile
+  age: number | null;
+  gender: string | null;
+  weightKg: { toNumber: () => number } | null;
+  heightCm: { toNumber: () => number } | null;
+  activityLevel: string | null;
+  bmr: { toNumber: () => number } | null;
+  tdee: { toNumber: () => number } | null;
+  dailyCalorieGoal: { toNumber: () => number } | null;
+  profileCompleted: boolean;
+  preferredLanguage: string | null;
 }
 
 export interface CalorieEntry {
   id: string;
-  user_id: string;
+  userId: string;
   calories: number;
-  food_description: string | null;
-  estimated_by_ai: boolean;
-  entry_date: string;
-  entry_time: string;
-  created_at: string;
+  foodDescription: string | null;
+  estimatedByAi: boolean;
+  entryDate: string;
+  entryTime: string;
+  createdAt: string;
 }
 
 export interface ConversationLog {
   id: string;
-  phone_number: string;
-  message_type: 'incoming' | 'outgoing';
-  message_body: string;
-  created_at: string;
+  phoneNumber: string;
+  messageType: 'incoming' | 'outgoing';
+  messageBody: string;
+  createdAt: string;
+}
+
+export interface ExerciseEntry {
+  id: string;
+  userId: string;
+  exerciseType: string;
+  durationMinutes: number;
+  caloriesBurned: { toNumber: () => number };
+  metValue: { toNumber: () => number } | null;
+  entryDate: string;
+  entryTime: string;
+  createdAt: string;
 }
 
 // Message Types

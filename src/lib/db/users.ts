@@ -106,3 +106,77 @@ export async function getUserById(userId: string): Promise<DbResult<User>> {
     };
   }
 }
+
+/**
+ * Update user profile with fitness information
+ * @param userId - User UUID
+ * @param profileData - Profile data to update
+ * @returns DbResult with updated user data or error
+ */
+export async function updateUserProfile(
+  userId: string,
+  profileData: {
+    age?: number;
+    gender?: string;
+    weightKg?: number;
+    heightCm?: number;
+    activityLevel?: string;
+    bmr?: number;
+    tdee?: number;
+    dailyCalorieGoal?: number;
+    profileCompleted?: boolean;
+    preferredLanguage?: string;
+  }
+): Promise<DbResult<User>> {
+  try {
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: profileData,
+    });
+
+    return { success: true, data: user as unknown as User };
+  } catch (error) {
+    console.error('Error updating user profile:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Update user's complete fitness profile including calculated metrics
+ * @param userId - User UUID
+ * @param age - Age in years
+ * @param gender - 'male' or 'female'
+ * @param weightKg - Weight in kilograms
+ * @param heightCm - Height in centimeters
+ * @param activityLevel - Activity level
+ * @param bmr - Calculated BMR
+ * @param tdee - Calculated TDEE
+ * @param dailyCalorieGoal - Calculated daily calorie goal
+ * @returns DbResult with updated user data or error
+ */
+export async function updateFitnessProfile(
+  userId: string,
+  age: number,
+  gender: string,
+  weightKg: number,
+  heightCm: number,
+  activityLevel: string,
+  bmr: number,
+  tdee: number,
+  dailyCalorieGoal: number
+): Promise<DbResult<User>> {
+  return updateUserProfile(userId, {
+    age,
+    gender,
+    weightKg,
+    heightCm,
+    activityLevel,
+    bmr,
+    tdee,
+    dailyCalorieGoal,
+    profileCompleted: true,
+  });
+}

@@ -1,0 +1,336 @@
+import { prisma } from '@/lib/prisma';
+import type { DbResult } from '@/types';
+import type { ExerciseEntry } from '@prisma/client';
+
+/**
+ * Add an exercise entry to the database
+ *
+ * @param userId - User ID
+ * @param exerciseType - Type of exercise
+ * @param durationMinutes - Duration in minutes
+ * @param caloriesBurned - Calories burned
+ * @param metValue - MET value used for calculation (optional)
+ * @returns Database operation result
+ */
+export async function addExerciseEntry(
+  userId: string,
+  exerciseType: string,
+  durationMinutes: number,
+  caloriesBurned: number,
+  metValue?: number
+): Promise<DbResult<ExerciseEntry>> {
+  try {
+    const entry = await prisma.exerciseEntry.create({
+      data: {
+        userId,
+        exerciseType,
+        durationMinutes,
+        caloriesBurned,
+        metValue,
+      },
+    });
+
+    return { success: true, data: entry };
+  } catch (error) {
+    console.error('Error adding exercise entry:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Get total calories burned from exercise today
+ *
+ * @param userId - User ID
+ * @returns Total calories burned today
+ */
+export async function getTodayExerciseCalories(
+  userId: string
+): Promise<DbResult<number>> {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    const result = await prisma.exerciseEntry.aggregate({
+      where: {
+        userId,
+        entryDate: new Date(today),
+      },
+      _sum: {
+        caloriesBurned: true,
+      },
+    });
+
+    return {
+      success: true,
+      data: result._sum.caloriesBurned?.toNumber() || 0,
+    };
+  } catch (error) {
+    console.error('Error getting exercise calories:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Get today's exercise entries
+ *
+ * @param userId - User ID
+ * @returns Array of exercise entries
+ */
+export async function getTodayExercises(
+  userId: string
+): Promise<DbResult<ExerciseEntry[]>> {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+
+    const exercises = await prisma.exerciseEntry.findMany({
+      where: {
+        userId,
+        entryDate: new Date(today),
+      },
+      orderBy: {
+        entryTime: 'desc',
+      },
+    });
+
+    return { success: true, data: exercises };
+  } catch (error) {
+    console.error('Error getting exercises:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Get weekly exercise summary
+ *
+ * @param userId - User ID
+ * @returns Total calories burned this week
+ */
+export async function getWeeklyExerciseSummary(
+  userId: string
+): Promise<DbResult<{ totalCalories: number; exerciseCount: number }>> {
+  try {
+    const today = new Date();
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(today.getDate() - 6);
+
+    const result = await prisma.exerciseEntry.aggregate({
+      where: {
+        userId,
+        entryDate: {
+          gte: sevenDaysAgo,
+          lte: today,
+        },
+      },
+      _sum: {
+        caloriesBurned: true,
+      },
+      _count: {
+        id: true,
+      },
+    });
+
+    return {
+      success: true,
+      data: {
+        totalCalories: result._sum.caloriesBurned?.toNumber() || 0,
+        exerciseCount: result._count.id,
+      },
+    };
+  } catch (error) {
+    console.error('Error getting weekly exercise summary:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Get exercise history for a specific date range
+ *
+ * @param userId - User ID
+ * @param startDate - Start date
+ * @param endDate - End date
+ * @returns Array of exercise entries
+ */
+export async function getExerciseHistory(
+  userId: string,
+  startDate: Date,
+  endDate: Date
+): Promise<DbResult<ExerciseEntry[]>> {
+  try {
+    const exercises = await prisma.exerciseEntry.findMany({
+      where: {
+        userId,
+        entryDate: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      orderBy: {
+        entryDate: 'desc',
+      },
+    });
+
+    return { success: true, data: exercises };
+  } catch (error) {
+    console.error('Error getting exercise history:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Get most recent exercise entry for a user
+ *
+ * @param userId - User ID
+ * @param date - Optional date (defaults to today)
+ * @returns Most recent exercise entry or null
+ */
+export async function getRecentExercise(
+  userId: string,
+  date?: string
+): Promise<DbResult<ExerciseEntry | null>> {
+  try {
+    const targetDate = date ? new Date(date) : new Date();
+    const dateStr = targetDate.toISOString().split('T')[0];
+
+    const exercise = await prisma.exerciseEntry.findFirst({
+      where: {
+        userId,
+        entryDate: new Date(dateStr),
+      },
+      orderBy: {
+        entryTime: 'desc',
+      },
+    });
+
+    return { success: true, data: exercise };
+  } catch (error) {
+    console.error('Error getting recent exercise:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Update an existing exercise entry
+ *
+ * @param exerciseId - Exercise entry ID
+ * @param updates - Fields to update
+ * @returns Updated exercise entry
+ */
+export async function updateExerciseEntry(
+  exerciseId: string,
+  updates: {
+    exerciseType?: string;
+    durationMinutes?: number;
+    caloriesBurned?: number;
+    metValue?: number;
+  }
+): Promise<DbResult<ExerciseEntry>> {
+  try {
+    const exercise = await prisma.exerciseEntry.update({
+      where: { id: exerciseId },
+      data: updates,
+    });
+
+    return { success: true, data: exercise };
+  } catch (error) {
+    console.error('Error updating exercise entry:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Delete an exercise entry
+ *
+ * @param exerciseId - Exercise entry ID
+ * @returns Database operation result
+ */
+export async function deleteExerciseEntry(
+  exerciseId: string
+): Promise<DbResult<void>> {
+  try {
+    await prisma.exerciseEntry.delete({
+      where: { id: exerciseId },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting exercise entry:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Replace an exercise entry with multiple new entries
+ * Useful for splitting a single exercise into multiple intensity levels
+ *
+ * @param exerciseId - Exercise entry ID to replace
+ * @param newEntries - Array of new exercise entries
+ * @returns Array of created exercise entries
+ */
+export async function replaceExerciseWithMultiple(
+  exerciseId: string,
+  userId: string,
+  newEntries: Array<{
+    exerciseType: string;
+    durationMinutes: number;
+    caloriesBurned: number;
+    metValue?: number;
+  }>
+): Promise<DbResult<ExerciseEntry[]>> {
+  try {
+    // Use transaction to ensure atomicity
+    const result = await prisma.$transaction(async (tx) => {
+      // Delete the old entry
+      await tx.exerciseEntry.delete({
+        where: { id: exerciseId },
+      });
+
+      // Create new entries
+      const created = await Promise.all(
+        newEntries.map((entry) =>
+          tx.exerciseEntry.create({
+            data: {
+              userId,
+              exerciseType: entry.exerciseType,
+              durationMinutes: entry.durationMinutes,
+              caloriesBurned: entry.caloriesBurned,
+              metValue: entry.metValue,
+            },
+          })
+        )
+      );
+
+      return created;
+    });
+
+    return { success: true, data: result };
+  } catch (error) {
+    console.error('Error replacing exercise entries:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}

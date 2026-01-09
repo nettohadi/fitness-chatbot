@@ -80,8 +80,8 @@ export function generateDailySummary(summary: CalorieSummary): string {
   const entries = summary.entries.slice(0, 10); // Limit to 10 most recent
   entries.forEach((entry) => {
     const calorieText = `${Math.round(Number(entry.calories))} cal`;
-    const description = entry.food_description || 'Direct entry';
-    const aiIndicator = entry.estimated_by_ai ? ' 🤖' : '';
+    const description = entry.foodDescription || 'Direct entry';
+    const aiIndicator = entry.estimatedByAi ? ' 🤖' : '';
     message += `• ${calorieText} - ${description}${aiIndicator}\n`;
   });
 
@@ -204,7 +204,7 @@ function groupEntriesByDate(
 ): Record<string, CalorieEntry[]> {
   return entries.reduce(
     (acc, entry) => {
-      const date = entry.entry_date;
+      const date = entry.entryDate;
       if (!acc[date]) {
         acc[date] = [];
       }

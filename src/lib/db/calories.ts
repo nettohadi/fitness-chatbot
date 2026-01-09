@@ -46,10 +46,20 @@ export async function getEntriesByDate(
   date: string
 ): Promise<DbResult<CalorieEntry[]>> {
   try {
+    // Create start and end of day to match all entries on this date
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
     const entries = await prisma.calorieEntry.findMany({
       where: {
         userId,
-        entryDate: new Date(date),
+        entryDate: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
       },
       orderBy: {
         entryTime: 'desc',
@@ -218,6 +228,27 @@ export function getTodayDate(): string {
 }
 
 /**
+ * Get yesterday's date in YYYY-MM-DD format
+ * @returns Yesterday's date string
+ */
+export function getYesterdayDate(): string {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return yesterday.toISOString().split('T')[0];
+}
+
+/**
+ * Get a date N days ago in YYYY-MM-DD format
+ * @param daysAgo - Number of days ago
+ * @returns Date string
+ */
+export function getDateDaysAgo(daysAgo: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() - daysAgo);
+  return date.toISOString().split('T')[0];
+}
+
+/**
  * Get the date range for the current week (Monday to Sunday)
  * @returns Object with startDate and endDate in YYYY-MM-DD format
  */
@@ -238,4 +269,59 @@ export function getCurrentWeekRange(): { startDate: string; endDate: string } {
     startDate: monday.toISOString().split('T')[0],
     endDate: sunday.toISOString().split('T')[0],
   };
+}
+
+/**
+ * Update an existing calorie entry
+ *
+ * @param entryId - Calorie entry ID
+ * @param updates - Fields to update
+ * @returns Updated calorie entry
+ */
+export async function updateCalorieEntry(
+  entryId: string,
+  updates: {
+    calories?: number;
+    foodDescription?: string;
+    estimatedByAi?: boolean;
+  }
+): Promise<DbResult<CalorieEntry>> {
+  try {
+    const entry = await prisma.calorieEntry.update({
+      where: { id: entryId },
+      data: updates,
+    });
+
+    return { success: true, data: entry as unknown as CalorieEntry };
+  } catch (error) {
+    console.error('Error updating calorie entry:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Delete a calorie entry
+ *
+ * @param entryId - Calorie entry ID
+ * @returns Database operation result
+ */
+export async function deleteCalorieEntry(
+  entryId: string
+): Promise<DbResult<void>> {
+  try {
+    await prisma.calorieEntry.delete({
+      where: { id: entryId },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting calorie entry:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
 }
