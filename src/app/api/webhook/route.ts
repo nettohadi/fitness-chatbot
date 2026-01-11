@@ -1,15 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendTelegramMessage, sendChatAction } from '@/lib/telegram';
-import { findOrCreateUser, updateFitnessProfile } from '@/lib/db/users';
-import { addCalorieEntry, updateCalorieEntry, deleteCalorieEntry, getDailySummary, getWeeklySummary, getTodayDate, getYesterdayDate, getCurrentWeekRange } from '@/lib/db/calories';
+import { sendTelegramMessage, sendChatAction, formatForMarkdownV2 } from '@/lib/telegram';
+import { findOrCreateUser, updateFitnessProfile, updateUserProfile } from '@/lib/db/users';
+import {
+  addCalorieEntry,
+  updateCalorieEntry,
+  deleteCalorieEntry,
+  getDailySummary,
+  getTodayDate,
+  getYesterdayDate,
+  getCurrentWeekRange,
+  getCurrentMonthRange,
+  getLastNDaysRange,
+  getEntriesByDateRange
+} from '@/lib/db/calories';
 import {
   addExerciseEntry,
   getTodayExercises,
-  getTodayExerciseCalories,
   updateExerciseEntry,
   deleteExerciseEntry,
   replaceExerciseWithMultiple,
-  getWeeklyExerciseSummary
+  getExercisesByDateRange,
+  getExerciseSummaryByDateRange
 } from '@/lib/db/exercises';
 import { logConversation } from '@/lib/db/conversations';
 import {
@@ -96,16 +107,22 @@ export async function POST(request: NextRequest) {
     const conversationHistory = await getConversationContext(userIdentifier);
 
     // Keep typing indicator alive for longer processing
-    // Reduced to 3.5s to ensure it refreshes before Telegram's 5s timeout
-    console.log('[TYPING] Starting typing indicator interval (every 3.5s)');
-    const typingInterval = setInterval(async () => {
-      try {
-        await sendChatAction(chatId, 'typing');
-      } catch (error) {
-        console.error('[TYPING] Failed to send typing indicator refresh:', error);
-        // Don't clear interval - keep trying
-      }
-    }, 3500);
+    // Reduced to 4s to ensure it refreshes before Telegram's 5s timeout
+    console.log('[TYPING] Starting typing indicator interval (every 4s)');
+    const typingInterval = setInterval(() => {
+      // Send typing indicator without awaiting to avoid blocking
+      sendChatAction(chatId, 'typing')
+        .then((result) => {
+          if (result.success) {
+            console.log('[TYPING] Typing indicator refreshed successfully');
+          } else {
+            console.error('[TYPING] Typing indicator refresh failed:', result.error);
+          }
+        })
+        .catch((error) => {
+          console.error('[TYPING] Exception while refreshing typing indicator:', error);
+        });
+    }, 4000);
 
     let responseMessage: string;
 
@@ -162,13 +179,13 @@ export async function POST(request: NextRequest) {
 
       if (structuredAction) {
         // Execute structured action (including save_profile from Claude)
-        await executeAction(structuredAction, user.id);
+        const actionResult = await executeAction(structuredAction, user.id, user);
 
-        // Check if this is a query_summary action
-        if (structuredAction.type === 'query_summary') {
-          responseMessage = await generateSummaryResponse(user, structuredAction.data.type);
+        // If action returned a summary (for historical queries), use it
+        // Otherwise use the userMessage from Claude
+        if (actionResult && typeof actionResult === 'string') {
+          responseMessage = actionResult;
         } else {
-          // Extract the user-facing message from the structured action
           responseMessage = structuredAction.userMessage || claudeResponse.replace(/```json[\s\S]*?```/, '').trim();
         }
       } else {
@@ -177,7 +194,7 @@ export async function POST(request: NextRequest) {
 
         if (contextAction.type !== 'none') {
           // Execute the confirmed action
-          await executeAction(contextAction, user.id);
+          await executeAction(contextAction, user.id, user);
         }
 
         responseMessage = claudeResponse;
@@ -190,8 +207,9 @@ export async function POST(request: NextRequest) {
       console.log('[TYPING] Typing indicator interval cleared');
     }
 
-    // Send response back to user
-    await sendTelegramMessage(chatId, responseMessage);
+    // Send response back to user with MarkdownV2 formatting
+    const formattedMessage = formatForMarkdownV2(responseMessage);
+    await sendTelegramMessage(chatId, formattedMessage, 'MarkdownV2');
 
     // Log outgoing message
     await logConversation(userIdentifier, 'outgoing', responseMessage);
@@ -211,172 +229,197 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Generate summary response from database data
+ * Generate summary for date range queries
  */
-async function generateSummaryResponse(user: any, queryType: string): Promise<string> {
+async function generateDateRangeSummary(
+  action: any,
+  userId: string,
+  user: any
+): Promise<string> {
   try {
-    let targetDate: string = getTodayDate();
-    let dateLabel: string = 'Today';
+    // Detect if user prefers Indonesian
+    const isIndonesian = user.preferredLanguage === 'id' || user.preferredLanguage === 'indonesian';
 
-    // Determine the date based on query type
-    switch (queryType) {
-      case 'today':
-        targetDate = getTodayDate();
-        dateLabel = 'Today';
-        break;
+    let startDate: string;
+    let endDate: string;
+    let periodLabel: string;
+
+    // Determine date range based on query type
+    switch (action.data.type) {
       case 'yesterday':
-        targetDate = getYesterdayDate();
-        dateLabel = 'Yesterday';
+        const yesterday = getYesterdayDate();
+        startDate = yesterday;
+        endDate = yesterday;
+        periodLabel = isIndonesian ? 'Kemarin' : 'Yesterday';
         break;
+
       case 'week':
-        // Handle week separately below
+        const weekRange = getCurrentWeekRange();
+        startDate = weekRange.startDate;
+        endDate = weekRange.endDate;
+        periodLabel = isIndonesian ? 'Minggu Ini' : 'This Week';
         break;
+
+      case 'month':
+        const monthRange = getCurrentMonthRange();
+        startDate = monthRange.startDate;
+        endDate = monthRange.endDate;
+        periodLabel = isIndonesian ? 'Bulan Ini' : 'This Month';
+        break;
+
+      case 'last_n_days':
+        const daysRange = getLastNDaysRange(action.data.days || 7);
+        startDate = daysRange.startDate;
+        endDate = daysRange.endDate;
+        periodLabel = isIndonesian
+          ? `${action.data.days || 7} Hari Terakhir`
+          : `Last ${action.data.days || 7} Days`;
+        break;
+
+      case 'date_range':
+        startDate = action.data.startDate;
+        endDate = action.data.endDate;
+        periodLabel = `${startDate} ${isIndonesian ? 'sampai' : 'to'} ${endDate}`;
+        break;
+
       default:
-        targetDate = getTodayDate();
-        dateLabel = 'Today';
+        return isIndonesian ? 'Tipe query tidak valid' : 'Invalid query type';
     }
 
-    if (queryType === 'today' || queryType === 'yesterday') {
-      const summaryResult = await getDailySummary(user.id, targetDate!);
+    // Fetch calorie data
+    const caloriesResult = await getEntriesByDateRange(userId, startDate, endDate);
+    const calories = caloriesResult.success && caloriesResult.data ? caloriesResult.data : [];
 
-      // Fetch exercise data for the same date
-      const exercisesResult = queryType === 'today'
-        ? await getTodayExercises(user.id)
-        : await getTodayExercises(user.id); // TODO: Add getExercisesByDate for yesterday
+    // Fetch exercise data
+    const exercisesResult = await getExerciseSummaryByDateRange(userId, startDate, endDate);
+    const exercises = exercisesResult.success && exercisesResult.data ? exercisesResult.data.exercises : [];
 
-      const exerciseCaloriesResult = queryType === 'today'
-        ? await getTodayExerciseCalories(user.id)
-        : { success: true, data: 0 }; // TODO: Add getExerciseCaloriesByDate for yesterday
+    // Calculate totals
+    const totalCaloriesConsumed = calories.reduce((sum, entry) => sum + Number(entry.calories), 0);
+    const totalCaloriesBurned = exercises.reduce(
+      (sum, ex) => sum + (ex.caloriesBurned?.toNumber?.() || Number(ex.caloriesBurned)),
+      0
+    );
+    const netCalories = totalCaloriesConsumed - totalCaloriesBurned;
 
-      if (!summaryResult.success || !summaryResult.data) {
-        // Check if there are exercises even without food
-        if (exercisesResult.success && exercisesResult.data && exercisesResult.data.length > 0) {
-          let message = `**${dateLabel}'s Summary:** 📊\n\n`;
-          message += `You haven't logged any meals yet, but you have exercises!\n\n`;
+    // Calculate average daily values for multi-day periods
+    const daysDiff = Math.ceil((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const avgDailyConsumed = Math.round(totalCaloriesConsumed / daysDiff);
+    const avgDailyBurned = Math.round(totalCaloriesBurned / daysDiff);
 
-          message += `**Your exercises:**\n`;
-          exercisesResult.data.forEach((exercise: any) => {
-            const duration = exercise.durationMinutes;
-            const calories = exercise.caloriesBurned?.toNumber
-              ? exercise.caloriesBurned.toNumber()
-              : exercise.caloriesBurned;
-            message += `- ${exercise.exerciseType}: ${duration} min (${calories} cal burned)\n`;
-          });
+    // Build summary message with language support
+    const labels = isIndonesian ? {
+      summary: 'Ringkasan',
+      foodConsumed: 'Makanan yang dikonsumsi:',
+      food: 'Makanan',
+      moreItems: 'item lainnya',
+      exercises: 'Olahraga:',
+      burned: 'terbakar',
+      moreExercises: 'olahraga lainnya',
+      totals: 'Total:',
+      consumed: 'Konsumsi',
+      net: 'Net',
+      dailyAverage: 'Rata-rata Harian:',
+      perDay: '/hari',
+      overTarget: 'Melebihi target',
+      underTarget: 'Di bawah target',
+      onTarget: 'Tepat target!'
+    } : {
+      summary: 'Summary',
+      foodConsumed: 'Food consumed:',
+      food: 'Food',
+      moreItems: 'more items',
+      exercises: 'Exercises:',
+      burned: 'burned',
+      moreExercises: 'more exercises',
+      totals: 'Totals:',
+      consumed: 'Consumed',
+      net: 'Net',
+      dailyAverage: 'Daily Average:',
+      perDay: '/day',
+      overTarget: 'Over target by',
+      underTarget: 'Under target by',
+      onTarget: 'On target!'
+    };
 
-          const burned = exerciseCaloriesResult.data || 0;
-          message += `\n- Burned: ${burned} cal (exercises)\n`;
-          message += `- Daily Goal: ${user.dailyCalorieGoal || 2000} cal\n`;
-          message += `- Net deficit: **${burned} cal** 💪\n\n`;
-          message += `Great job staying active! 🏃`;
+    let summary = `**${periodLabel} ${labels.summary}** 📊\n\n`;
 
-          return message;
-        }
-        return `You haven't logged any meals for ${dateLabel.toLowerCase()} yet! 🍽️`;
-      }
+    if (calories.length > 0) {
+      summary += `**${labels.foodConsumed}**\n`;
+      const foodByDate: { [date: string]: typeof calories } = {};
+      calories.forEach(entry => {
+        const date = entry.entryDate.toString();
+        if (!foodByDate[date]) foodByDate[date] = [];
+        foodByDate[date].push(entry);
+      });
 
-      const summary = summaryResult.data;
-      const consumed = summary.totalCalories;
-      const burned = exerciseCaloriesResult.data || 0;
-      const netCalories = consumed - burned;
-      const dailyGoal = user.dailyCalorieGoal?.toNumber ? user.dailyCalorieGoal.toNumber() : (user.dailyCalorieGoal || 2000);
-      const remaining = dailyGoal - netCalories;
-
-      let message = `**${dateLabel}'s Summary:** 📊\n\n`;
-
-      if (summary.entries.length > 0) {
-        message += `**What you ate:**\n`;
-        summary.entries.forEach((entry: any) => {
-          const estimatedTag = entry.estimatedByAi ? ' (estimated)' : '';
-          const foodName = entry.foodDescription || 'Food item';
-          message += `- ${foodName}: ${entry.calories} cal${estimatedTag}\n`;
+      Object.keys(foodByDate).sort().reverse().slice(0, 5).forEach(date => {
+        const dateEntries = foodByDate[date];
+        const dailyTotal = dateEntries.reduce((sum, e) => sum + Number(e.calories), 0);
+        summary += `\n*${date}:* ${dailyTotal} kcal\n`;
+        dateEntries.slice(0, 3).forEach(entry => {
+          summary += `  - ${entry.foodDescription || labels.food}: ${entry.calories} kcal\n`;
         });
-        message += `\n`;
-      }
-
-      // Add exercises section if any
-      if (exercisesResult.success && exercisesResult.data && exercisesResult.data.length > 0) {
-        message += `**Your exercises:**\n`;
-        exercisesResult.data.forEach((exercise: any) => {
-          const duration = exercise.durationMinutes;
-          const calories = exercise.caloriesBurned?.toNumber
-            ? exercise.caloriesBurned.toNumber()
-            : exercise.caloriesBurned;
-          message += `- ${exercise.exerciseType}: ${duration} min (${calories} cal burned)\n`;
-        });
-        message += `\n`;
-      }
-
-      message += `- Consumed: ${consumed} cal\n`;
-      if (burned > 0) {
-        message += `- Burned: ${burned} cal (exercises)\n`;
-        message += `- Net: ${netCalories} cal\n`;
-      }
-      message += `- Daily Goal: ${dailyGoal} cal\n`;
-      message += `- Remaining: **${remaining} cal** ${remaining > 0 ? '🍏' : '⚠️'}\n\n`;
-
-      if (remaining > 0) {
-        message += `You're doing great - plenty of room for more meals today! 💪`;
-      } else {
-        message += `You've reached your daily goal! 🎯`;
-      }
-
-      return message;
-    } else if (queryType === 'week') {
-      const weekRange = getCurrentWeekRange();
-      const summaryResult = await getWeeklySummary(user.id, weekRange.startDate, weekRange.endDate);
-      const exerciseSummaryResult = await getWeeklyExerciseSummary(user.id);
-
-      if (!summaryResult.success || !summaryResult.data) {
-        // Check if there are exercises even without food
-        if (exerciseSummaryResult.success && exerciseSummaryResult.data && exerciseSummaryResult.data.exerciseCount > 0) {
-          let message = `**This Week's Summary:** 📅\n\n`;
-          message += `You haven't logged any meals yet, but you have exercises!\n\n`;
-          message += `- Exercise Sessions: ${exerciseSummaryResult.data.exerciseCount}\n`;
-          message += `- Total Burned: ${exerciseSummaryResult.data.totalCalories} cal\n\n`;
-          message += `Great job staying active this week! 💪`;
-          return message;
+        if (dateEntries.length > 3) {
+          summary += `  - ...${isIndonesian ? 'dan' : 'and'} ${dateEntries.length - 3} ${labels.moreItems}\n`;
         }
-        return "You haven't logged any meals this week yet! 🍽️";
-      }
-
-      const summary = summaryResult.data;
-      const consumed = summary.totalCalories;
-      const burned = exerciseSummaryResult.success && exerciseSummaryResult.data
-        ? exerciseSummaryResult.data.totalCalories
-        : 0;
-      const netCalories = consumed - burned;
-
-      const dailyGoal = user.dailyCalorieGoal?.toNumber ? user.dailyCalorieGoal.toNumber() : (user.dailyCalorieGoal || 2000);
-      const weeklyGoal = dailyGoal * 7;
-      const remaining = weeklyGoal - netCalories;
-
-      let message = `**This Week's Summary:** 📅\n\n`;
-      message += `- Total Consumed: ${consumed} cal\n`;
-      if (burned > 0) {
-        message += `- Total Burned: ${burned} cal (exercises)\n`;
-        message += `- Net: ${netCalories} cal\n`;
-      }
-      message += `- Weekly Goal: ${weeklyGoal} cal\n`;
-      message += `- Remaining: **${remaining} cal**\n`;
-      message += `- Food Entries: ${summary.entryCount}\n`;
-      if (exerciseSummaryResult.success && exerciseSummaryResult.data) {
-        message += `- Exercise Sessions: ${exerciseSummaryResult.data.exerciseCount}\n`;
-      }
-      message += `\n`;
-
-      if (remaining > 0) {
-        message += `Keep up the good work! 💪`;
-      } else {
-        message += `You've reached your weekly goal! 🎯`;
-      }
-
-      return message;
+      });
     }
 
-    return "I couldn't generate the summary. Please try again.";
+    if (exercises.length > 0) {
+      summary += `\n**${labels.exercises}**\n`;
+      const exerciseByDate: { [date: string]: typeof exercises } = {};
+      exercises.forEach(ex => {
+        const date = ex.entryDate.toString();
+        if (!exerciseByDate[date]) exerciseByDate[date] = [];
+        exerciseByDate[date].push(ex);
+      });
+
+      Object.keys(exerciseByDate).sort().reverse().slice(0, 5).forEach(date => {
+        const dateExercises = exerciseByDate[date];
+        const dailyBurned = dateExercises.reduce(
+          (sum, e) => sum + (e.caloriesBurned?.toNumber?.() || Number(e.caloriesBurned)),
+          0
+        );
+        summary += `\n*${date}:* ${dailyBurned} kcal ${labels.burned}\n`;
+        dateExercises.slice(0, 3).forEach(ex => {
+          const burned = ex.caloriesBurned?.toNumber?.() || Number(ex.caloriesBurned);
+          summary += `  - ${ex.exerciseType}: ${ex.durationMinutes} min (${burned} kcal)\n`;
+        });
+        if (dateExercises.length > 3) {
+          summary += `  - ...${isIndonesian ? 'dan' : 'and'} ${dateExercises.length - 3} ${labels.moreExercises}\n`;
+        }
+      });
+    }
+
+    summary += `\n**${labels.totals}**\n`;
+    summary += `- ${labels.consumed}: ${totalCaloriesConsumed} kcal\n`;
+    summary += `- ${labels.burned.charAt(0).toUpperCase() + labels.burned.slice(1)}: ${totalCaloriesBurned} kcal\n`;
+    summary += `- ${labels.net}: ${netCalories} kcal\n`;
+
+    if (daysDiff > 1) {
+      summary += `\n**${labels.dailyAverage}**\n`;
+      summary += `- ${labels.consumed}: ${avgDailyConsumed} kcal${labels.perDay}\n`;
+      summary += `- ${labels.burned.charAt(0).toUpperCase() + labels.burned.slice(1)}: ${avgDailyBurned} kcal${labels.perDay}\n`;
+
+      // Calculate vs target
+      if (user.dailyCalorieGoal) {
+        const dailyGoal = user.dailyCalorieGoal.toNumber();
+        const diff = avgDailyConsumed - dailyGoal;
+        if (diff > 0) {
+          summary += `- ${labels.overTarget} ${diff} kcal${labels.perDay} 📈\n`;
+        } else if (diff < 0) {
+          summary += `- ${labels.underTarget} ${Math.abs(diff)} kcal${labels.perDay} 📉\n`;
+        } else {
+          summary += `- ${labels.onTarget} ✅\n`;
+        }
+      }
+    }
+
+    return summary;
   } catch (error) {
-    console.error('Error generating summary:', error);
-    return "Sorry, I encountered an error generating your summary. Please try again.";
+    console.error('Error generating date range summary:', error);
+    return 'Sorry, I encountered an error generating the summary.';
   }
 }
 
@@ -385,8 +428,9 @@ async function generateSummaryResponse(user: any, queryType: string): Promise<st
  */
 async function executeAction(
   action: any,
-  userId: string
-): Promise<void> {
+  userId: string,
+  user?: any
+): Promise<string | void> {
   try {
     switch (action.type) {
       case 'save_calories':
@@ -504,7 +548,7 @@ async function executeAction(
 
         console.log('📊 Calculated metrics:', JSON.stringify(metrics, null, 2));
 
-        // Save profile to database
+        // Save profile to database (including optional deficit target)
         const updateResult = await updateFitnessProfile(
           userId,
           action.data.age,
@@ -514,7 +558,8 @@ async function executeAction(
           action.data.activityLevel,
           metrics.bmr,
           metrics.tdee,
-          metrics.dailyCalorieGoal
+          metrics.dailyCalorieGoal,
+          action.data.deficitTarget
         );
 
         console.log('💾 Database update result:', updateResult.success ? '✅ Success' : '❌ Failed');
@@ -525,11 +570,33 @@ async function executeAction(
         }
         break;
 
+      case 'update_profile':
+        console.log('📝 Updating user profile with data:', JSON.stringify(action.data, null, 2));
+
+        // Use updateUserProfile to update only the specified fields
+        const profileUpdateResult = await updateUserProfile(userId, action.data);
+
+        console.log('💾 Profile update result:', profileUpdateResult.success ? '✅ Success' : '❌ Failed');
+        if (!profileUpdateResult.success) {
+          console.error('❌ Profile update error:', profileUpdateResult.error);
+        }
+        break;
+
       case 'query_summary':
         console.log('📊 Query summary requested:', action.data.type);
-        // Query summary will be handled by returning a special response
-        // that the webhook will use to generate the summary message
-        action._requiresSummaryResponse = true;
+
+        // For "today" queries, Claude already generated the summary in userMessage
+        if (action.data.type === 'today') {
+          console.log('📊 Today query - using Claude-generated summary');
+          break;
+        }
+
+        // For historical queries, generate summary from database
+        if (user) {
+          console.log('📊 Generating historical summary for:', action.data.type);
+          const summary = await generateDateRangeSummary(action, userId, user);
+          return summary;
+        }
         break;
 
       default:

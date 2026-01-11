@@ -272,6 +272,41 @@ export function getCurrentWeekRange(): { startDate: string; endDate: string } {
 }
 
 /**
+ * Get the date range for the current month
+ * @returns Object with startDate and endDate in YYYY-MM-DD format
+ */
+export function getCurrentMonthRange(): { startDate: string; endDate: string } {
+  const now = new Date();
+
+  // First day of current month
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  // Last day of current month
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  return {
+    startDate: firstDay.toISOString().split('T')[0],
+    endDate: lastDay.toISOString().split('T')[0],
+  };
+}
+
+/**
+ * Get the date range for the last N days
+ * @param days - Number of days to look back (default: 7)
+ * @returns Object with startDate and endDate in YYYY-MM-DD format
+ */
+export function getLastNDaysRange(days: number = 7): { startDate: string; endDate: string } {
+  const now = new Date();
+  const startDate = new Date(now);
+  startDate.setDate(now.getDate() - (days - 1));
+
+  return {
+    startDate: startDate.toISOString().split('T')[0],
+    endDate: now.toISOString().split('T')[0],
+  };
+}
+
+/**
  * Update an existing calorie entry
  *
  * @param entryId - Calorie entry ID

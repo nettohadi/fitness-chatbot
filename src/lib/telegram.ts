@@ -3,6 +3,43 @@ import TelegramBot from 'node-telegram-bot-api';
 // Environment variables
 const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
+/**
+ * Escape special characters for MarkdownV2
+ * Characters that need escaping: _ * [ ] ( ) ~ ` > # + - = | { } . !
+ * @param text - Text to escape
+ * @returns Escaped text safe for MarkdownV2
+ */
+export function escapeMarkdownV2(text: string): string {
+  // Replace special characters with escaped versions
+  // Do NOT escape characters inside formatting markers
+  return text.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+}
+
+/**
+ * Format text for MarkdownV2 by converting ** to * and escaping special chars
+ * This function handles the conversion from simple markdown (**bold**) to MarkdownV2 (*bold*)
+ * and properly escapes special characters outside of formatting markers
+ * @param text - Text with simple markdown formatting
+ * @returns Text formatted for MarkdownV2
+ */
+export function formatForMarkdownV2(text: string): string {
+  // Use unique Unicode placeholders that won't be escaped
+  const BOLD_START = '\u200B\u200C\u200D'; // Zero-width characters
+  const BOLD_END = '\u200D\u200C\u200B';   // Reversed for uniqueness
+
+  // Step 1: Replace **text** with placeholders
+  let formatted = text.replace(/\*\*([^*]+?)\*\*/g, `${BOLD_START}$1${BOLD_END}`);
+
+  // Step 2: Escape all special MarkdownV2 characters
+  formatted = formatted.replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
+
+  // Step 3: Replace placeholders with unescaped * for bold
+  formatted = formatted.replace(new RegExp(BOLD_START, 'g'), '*');
+  formatted = formatted.replace(new RegExp(BOLD_END, 'g'), '*');
+
+  return formatted;
+}
+
 // Lazy-load Telegram bot to avoid build-time initialization
 let _telegramBot: TelegramBot | null = null;
 
@@ -21,15 +58,23 @@ function getTelegramBot() {
  * Send a message via Telegram
  * @param chatId - Telegram chat ID
  * @param text - Message text
+ * @param parseMode - Optional parse mode ('MarkdownV2', 'Markdown', 'HTML')
  * @returns Promise with message result or error
  */
 export async function sendTelegramMessage(
   chatId: number | string,
-  text: string
+  text: string,
+  parseMode?: 'MarkdownV2' | 'Markdown' | 'HTML'
 ): Promise<{ success: boolean; messageId?: number; error?: string }> {
   try {
     const bot = getTelegramBot();
-    const message = await bot.sendMessage(chatId, text);
+    const options: any = {};
+
+    if (parseMode) {
+      options.parse_mode = parseMode;
+    }
+
+    const message = await bot.sendMessage(chatId, text, options);
 
     return {
       success: true,
@@ -105,7 +150,7 @@ export async function deleteWebhook(): Promise<{ success: boolean; error?: strin
  */
 export async function sendChatAction(
   chatId: number | string,
-  action: 'typing' | 'upload_photo' | 'record_video' | 'upload_video' | 'record_voice' | 'upload_voice' | 'upload_document' | 'choose_sticker' | 'find_location' | 'record_video_note' | 'upload_video_note'
+  action: 'typing' | 'upload_photo' | 'record_video' | 'upload_video' | 'record_voice' | 'upload_voice' | 'upload_document'  | 'find_location' | 'record_video_note' | 'upload_video_note'
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const bot = getTelegramBot();

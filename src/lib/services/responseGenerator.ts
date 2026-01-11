@@ -79,7 +79,7 @@ export function generateDailySummary(summary: CalorieSummary): string {
   // Group entries and show them
   const entries = summary.entries.slice(0, 10); // Limit to 10 most recent
   entries.forEach((entry) => {
-    const calorieText = `${Math.round(Number(entry.calories))} cal`;
+    const calorieText = `${Math.round(Number(entry.calories))} kcal`;
     const description = entry.foodDescription || 'Direct entry';
     const aiIndicator = entry.estimatedByAi ? ' 🤖' : '';
     message += `• ${calorieText} - ${description}${aiIndicator}\n`;
@@ -106,7 +106,7 @@ export function generateWeeklySummary(summary: CalorieSummary): string {
 
   let message = `📊 *This week's total:* ${Math.round(summary.totalCalories)} calories\n`;
   message += `Entries: ${summary.entryCount}\n`;
-  message += `Average per day: ${avgPerDay} cal\n\n`;
+  message += `Average per day: ${avgPerDay} kcal\n\n`;
 
   // Group by date
   const entriesByDate = groupEntriesByDate(summary.entries);
@@ -117,7 +117,7 @@ export function generateWeeklySummary(summary: CalorieSummary): string {
     .forEach(([date, entries]) => {
       const dailyTotal = entries.reduce((sum, e) => sum + Number(e.calories), 0);
       const formattedDate = formatDate(date);
-      message += `• ${formattedDate}: ${Math.round(dailyTotal)} cal (${entries.length} entries)\n`;
+      message += `• ${formattedDate}: ${Math.round(dailyTotal)} kcal (${entries.length} entries)\n`;
     });
 
   return message;

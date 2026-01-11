@@ -124,14 +124,24 @@ export async function updateUserProfile(
     bmr?: number;
     tdee?: number;
     dailyCalorieGoal?: number;
+    deficitTarget?: number;
     profileCompleted?: boolean;
     preferredLanguage?: string;
   }
 ): Promise<DbResult<User>> {
   try {
+    // Filter out undefined values to avoid Prisma errors
+    const cleanedData: any = {};
+    Object.keys(profileData).forEach((key) => {
+      const value = (profileData as any)[key];
+      if (value !== undefined) {
+        cleanedData[key] = value;
+      }
+    });
+
     const user = await prisma.user.update({
       where: { id: userId },
-      data: profileData,
+      data: cleanedData,
     });
 
     return { success: true, data: user as unknown as User };
@@ -155,6 +165,7 @@ export async function updateUserProfile(
  * @param bmr - Calculated BMR
  * @param tdee - Calculated TDEE
  * @param dailyCalorieGoal - Calculated daily calorie goal
+ * @param deficitTarget - Optional deficit target in calories per day
  * @returns DbResult with updated user data or error
  */
 export async function updateFitnessProfile(
@@ -166,9 +177,10 @@ export async function updateFitnessProfile(
   activityLevel: string,
   bmr: number,
   tdee: number,
-  dailyCalorieGoal: number
+  dailyCalorieGoal: number,
+  deficitTarget?: number
 ): Promise<DbResult<User>> {
-  return updateUserProfile(userId, {
+  const updates: any = {
     age,
     gender,
     weightKg,
@@ -178,5 +190,11 @@ export async function updateFitnessProfile(
     tdee,
     dailyCalorieGoal,
     profileCompleted: true,
-  });
+  };
+
+  if (deficitTarget !== undefined) {
+    updates.deficitTarget = deficitTarget;
+  }
+
+  return updateUserProfile(userId, updates);
 }

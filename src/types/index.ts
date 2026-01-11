@@ -13,6 +13,7 @@ export interface User {
   bmr: { toNumber: () => number } | null;
   tdee: { toNumber: () => number } | null;
   dailyCalorieGoal: { toNumber: () => number } | null;
+  deficitTarget: { toNumber: () => number } | null;
   profileCompleted: boolean;
   preferredLanguage: string | null;
 }

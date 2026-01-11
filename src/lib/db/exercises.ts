@@ -191,6 +191,90 @@ export async function getExerciseHistory(
 }
 
 /**
+ * Get exercises by date range (string version)
+ *
+ * @param userId - User ID
+ * @param startDate - Start date in YYYY-MM-DD format
+ * @param endDate - End date in YYYY-MM-DD format
+ * @returns Array of exercise entries
+ */
+export async function getExercisesByDateRange(
+  userId: string,
+  startDate: string,
+  endDate: string
+): Promise<DbResult<ExerciseEntry[]>> {
+  try {
+    const exercises = await prisma.exerciseEntry.findMany({
+      where: {
+        userId,
+        entryDate: {
+          gte: new Date(startDate),
+          lte: new Date(endDate),
+        },
+      },
+      orderBy: [
+        { entryDate: 'desc' },
+        { entryTime: 'desc' },
+      ],
+    });
+
+    return { success: true, data: exercises };
+  } catch (error) {
+    console.error('Error getting exercises by date range:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
+ * Get exercise summary for a date range
+ *
+ * @param userId - User ID
+ * @param startDate - Start date in YYYY-MM-DD format
+ * @param endDate - End date in YYYY-MM-DD format
+ * @returns Summary with total calories and exercise count
+ */
+export async function getExerciseSummaryByDateRange(
+  userId: string,
+  startDate: string,
+  endDate: string
+): Promise<DbResult<{ totalCalories: number; exerciseCount: number; exercises: ExerciseEntry[] }>> {
+  try {
+    const exercisesResult = await getExercisesByDateRange(userId, startDate, endDate);
+
+    if (!exercisesResult.success || !exercisesResult.data) {
+      return {
+        success: false,
+        error: exercisesResult.error || 'No data returned',
+      };
+    }
+
+    const exercises = exercisesResult.data;
+    const totalCalories = exercises.reduce(
+      (sum, exercise) => sum + (exercise.caloriesBurned?.toNumber?.() || Number(exercise.caloriesBurned)),
+      0
+    );
+
+    return {
+      success: true,
+      data: {
+        totalCalories,
+        exerciseCount: exercises.length,
+        exercises,
+      },
+    };
+  } catch (error) {
+    console.error('Error getting exercise summary by date range:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}
+
+/**
  * Get most recent exercise entry for a user
  *
  * @param userId - User ID

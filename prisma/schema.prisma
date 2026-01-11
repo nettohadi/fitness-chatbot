@@ -7,66 +7,71 @@ datasource db {
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model calorie_entries {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id          String   @db.Uuid
-  calories         Decimal  @db.Decimal(10, 2)
-  food_description String?
-  estimated_by_ai  Boolean  @default(false)
-  entry_date       DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
-  entry_time       DateTime @default(now()) @db.Timestamptz(6)
-  created_at       DateTime @default(now()) @db.Timestamptz(6)
-  users            users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+model CalorieEntry {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  calories        Decimal  @db.Decimal(10, 2)
+  foodDescription String?  @map("food_description")
+  estimatedByAi   Boolean  @default(false) @map("estimated_by_ai")
+  entryDate       DateTime @default(dbgenerated("CURRENT_DATE")) @map("entry_date") @db.Date
+  entryTime       DateTime @default(now()) @map("entry_time") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([created_at], map: "idx_calorie_entries_created")
-  @@index([user_id, entry_date], map: "idx_calorie_entries_user_date")
+  @@index([createdAt], map: "idx_calorie_entries_created")
+  @@index([userId, entryDate], map: "idx_calorie_entries_user_date")
+  @@map("calorie_entries")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model conversation_logs {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  phone_number String   @db.VarChar(20)
-  message_type String?  @db.VarChar(20)
-  message_body String?
-  created_at   DateTime @default(now()) @db.Timestamptz(6)
+model ConversationLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phoneNumber String   @map("phone_number") @db.VarChar(20)
+  messageType String?  @map("message_type") @db.VarChar(20)
+  messageBody String?  @map("message_body")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
-  @@index([created_at], map: "idx_conversation_logs_created")
-  @@index([phone_number], map: "idx_conversation_logs_phone")
+  @@index([createdAt], map: "idx_conversation_logs_created")
+  @@index([phoneNumber], map: "idx_conversation_logs_phone")
+  @@map("conversation_logs")
 }
 
-model exercise_entries {
-  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  user_id          String   @db.Uuid
-  exercise_type    String   @db.VarChar(100)
-  duration_minutes Int
-  calories_burned  Decimal  @db.Decimal(8, 2)
-  met_value        Decimal? @db.Decimal(4, 2)
-  entry_date       DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
-  entry_time       DateTime @default(now()) @db.Timestamptz(6)
-  created_at       DateTime @default(now()) @db.Timestamptz(6)
-  users            users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+model ExerciseEntry {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  exerciseType    String   @map("exercise_type") @db.VarChar(100)
+  durationMinutes Int      @map("duration_minutes")
+  caloriesBurned  Decimal  @map("calories_burned") @db.Decimal(8, 2)
+  metValue        Decimal? @map("met_value") @db.Decimal(4, 2)
+  entryDate       DateTime @default(dbgenerated("CURRENT_DATE")) @map("entry_date") @db.Date
+  entryTime       DateTime @default(now()) @map("entry_time") @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([user_id, entry_date], map: "idx_exercise_entries_user_date")
+  @@index([userId, entryDate], map: "idx_exercise_entries_user_date")
+  @@map("exercise_entries")
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
-model users {
-  id                 String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  phone_number       String             @unique @db.VarChar(20)
-  created_at         DateTime           @default(now()) @db.Timestamptz(6)
-  updated_at         DateTime           @default(now()) @db.Timestamptz(6)
-  activity_level     String?            @db.VarChar(20)
-  age                Int?
-  bmr                Decimal?           @db.Decimal(6, 2)
-  daily_calorie_goal Decimal?           @db.Decimal(6, 2)
-  gender             String?            @db.VarChar(10)
-  height_cm          Decimal?           @db.Decimal(5, 2)
-  preferred_language String?            @db.VarChar(10)
-  profile_completed  Boolean            @default(false)
-  tdee               Decimal?           @db.Decimal(6, 2)
-  weight_kg          Decimal?           @db.Decimal(5, 2)
-  calorie_entries    calorie_entries[]
-  exercise_entries   exercise_entries[]
+model User {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phoneNumber       String          @unique @map("phone_number") @db.VarChar(20)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime        @default(now()) @map("updated_at") @db.Timestamptz(6)
+  activityLevel     String?         @map("activity_level") @db.VarChar(20)
+  age               Int?
+  bmr               Decimal?        @db.Decimal(6, 2)
+  dailyCalorieGoal  Decimal?        @map("daily_calorie_goal") @db.Decimal(6, 2)
+  gender            String?         @db.VarChar(10)
+  heightCm          Decimal?        @map("height_cm") @db.Decimal(5, 2)
+  preferredLanguage String?         @map("preferred_language") @db.VarChar(10)
+  profileCompleted  Boolean         @default(false) @map("profile_completed")
+  tdee              Decimal?        @db.Decimal(6, 2)
+  weightKg          Decimal?        @map("weight_kg") @db.Decimal(5, 2)
+  deficitTarget     Decimal?        @map("deficit_target") @db.Decimal(6, 2)
+  calorieEntries    CalorieEntry[]
+  exerciseEntries   ExerciseEntry[]
 
-  @@index([phone_number], map: "idx_users_phone")
+  @@index([phoneNumber], map: "idx_users_phone")
+  @@map("users")
 }
