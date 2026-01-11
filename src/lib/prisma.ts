@@ -5,6 +5,11 @@ import { Pool } from 'pg';
 // Use DATABASE_URL from environment variables
 const connectionString = process.env.DATABASE_URL;
 
+console.log('🔍 Prisma initialization:');
+console.log('  - DATABASE_URL exists:', !!connectionString);
+console.log('  - Connection string preview:', connectionString ? `${connectionString.substring(0, 30)}...` : 'MISSING');
+console.log('  - NODE_ENV:', process.env.NODE_ENV);
+
 if (!connectionString) {
   throw new Error('DATABASE_URL environment variable is not set');
 }

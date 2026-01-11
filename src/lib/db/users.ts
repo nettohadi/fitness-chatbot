@@ -33,13 +33,18 @@ export async function createUser(
   phoneNumber: string
 ): Promise<DbResult<User>> {
   try {
+    console.log('🔄 Attempting to create user with phone:', phoneNumber);
+    console.log('🔌 DATABASE_URL configured:', process.env.DATABASE_URL ? 'YES' : 'NO');
+
     const user = await prisma.user.create({
       data: { phoneNumber },
     });
 
+    console.log('✅ User created successfully:', user.id);
     return { success: true, data: user as unknown as User };
   } catch (error) {
-    console.error('Error creating user:', error);
+    console.error('❌ Error creating user:', error);
+    console.error('Error details:', JSON.stringify(error, null, 2));
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
