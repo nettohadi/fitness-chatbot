@@ -15,8 +15,8 @@ fi
 WEBHOOK_URL=$1
 
 # Load TELEGRAM_BOT_TOKEN from .env if available
-if [ -f .env ]; then
-    export $(cat .env | grep TELEGRAM_BOT_TOKEN | xargs)
+if [ -f .env.local ]; then
+    export $(cat .env.local | grep TELEGRAM_BOT_TOKEN | xargs)
 fi
 
 # Check if TELEGRAM_BOT_TOKEN is set
