@@ -2,17 +2,19 @@ import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 
-// Create PostgreSQL pool with explicit configuration
+// Use DATABASE_URL from environment variables
 const connectionString = process.env.DATABASE_URL;
 
-// Parse the connection string to ensure it's correct
+if (!connectionString) {
+  throw new Error('DATABASE_URL environment variable is not set');
+}
+
+// Pool configuration using connection string from env
 const poolConfig = {
   connectionString,
-  // Ensure the connection string is used correctly
-  host: 'localhost',
-  port: 5432,
-  database: 'fitness_chatbot',
-  user: 'hadi_sy',
+  max: 10, // Maximum number of connections in the pool
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000,
 };
 
 // PrismaClient is attached to the `global` object in development to prevent
