@@ -171,6 +171,8 @@ export async function updateUserProfile(
  * @param tdee - Calculated TDEE
  * @param dailyCalorieGoal - Calculated daily calorie goal
  * @param deficitTarget - Optional deficit target in calories per day
+ * @param fullName - Optional full name of the user
+ * @param nickname - Optional nickname/preferred name
  * @returns DbResult with updated user data or error
  */
 export async function updateFitnessProfile(
@@ -183,7 +185,9 @@ export async function updateFitnessProfile(
   bmr: number,
   tdee: number,
   dailyCalorieGoal: number,
-  deficitTarget?: number
+  deficitTarget?: number,
+  fullName?: string,
+  nickname?: string
 ): Promise<DbResult<User>> {
   const updates: any = {
     age,
@@ -199,6 +203,14 @@ export async function updateFitnessProfile(
 
   if (deficitTarget !== undefined) {
     updates.deficitTarget = deficitTarget;
+  }
+
+  if (fullName !== undefined) {
+    updates.fullName = fullName;
+  }
+
+  if (nickname !== undefined) {
+    updates.nickname = nickname;
   }
 
   return updateUserProfile(userId, updates);

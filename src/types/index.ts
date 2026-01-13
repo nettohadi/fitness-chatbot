@@ -2,6 +2,8 @@
 export interface User {
   id: string;
   phoneNumber: string;
+  fullName: string | null;
+  nickname: string | null;
   createdAt: string;
   updatedAt: string;
   // Fitness Profile
