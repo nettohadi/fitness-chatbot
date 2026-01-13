@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
         console.log('[OPTIMIZATION] Executing context action:', contextAction.type);
         console.log('[OPTIMIZATION] Skipping DB queries - using cached context');
 
-        const responseText = await executeAction(contextAction, user.id, user);
+        const responseText = await executeAction(contextAction, user.id, user, conversationHistory);
 
         await Promise.all([
           sendTelegramMessage(chatId, responseText || 'Done!', 'Markdown'),
@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
       const parsedAction = parseStructuredAction(response);
 
       if (parsedAction && parsedAction.type !== 'none') {
-        await executeAction(parsedAction, user.id, user);
+        await executeAction(parsedAction, user.id, user, conversationHistory);
         const responseText = parsedAction.userMessage || response;
 
         await Promise.all([
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
 
       if (structuredAction) {
         // Execute structured action (including save_profile from Claude)
-        const actionResult = await executeAction(structuredAction, user.id, user);
+        const actionResult = await executeAction(structuredAction, user.id, user, conversationHistory);
 
         // If action returned a summary (for historical queries), use it
         // Otherwise use the userMessage from Claude
@@ -258,7 +258,7 @@ export async function POST(request: NextRequest) {
 
         if (contextAction.type !== 'none') {
           // Execute the confirmed action
-          await executeAction(contextAction, user.id, user);
+          await executeAction(contextAction, user.id, user, conversationHistory);
         }
 
         responseMessage = claudeResponse;
@@ -298,12 +298,10 @@ export async function POST(request: NextRequest) {
 async function generateDateRangeSummary(
   action: any,
   userId: string,
-  user: any
+  user: any,
+  conversationContext: any[]
 ): Promise<string> {
   try {
-    // Detect if user prefers Indonesian
-    const isIndonesian = user.preferredLanguage === 'id' || user.preferredLanguage === 'indonesian';
-
     let startDate: string;
     let endDate: string;
     let periodLabel: string;
@@ -314,40 +312,38 @@ async function generateDateRangeSummary(
         const yesterday = getYesterdayDate();
         startDate = yesterday;
         endDate = yesterday;
-        periodLabel = isIndonesian ? 'Kemarin' : 'Yesterday';
+        periodLabel = 'yesterday';
         break;
 
       case 'week':
         const weekRange = getCurrentWeekRange();
         startDate = weekRange.startDate;
         endDate = weekRange.endDate;
-        periodLabel = isIndonesian ? 'Minggu Ini' : 'This Week';
+        periodLabel = 'this week';
         break;
 
       case 'month':
         const monthRange = getCurrentMonthRange();
         startDate = monthRange.startDate;
         endDate = monthRange.endDate;
-        periodLabel = isIndonesian ? 'Bulan Ini' : 'This Month';
+        periodLabel = 'this month';
         break;
 
       case 'last_n_days':
         const daysRange = getLastNDaysRange(action.data.days || 7);
         startDate = daysRange.startDate;
         endDate = daysRange.endDate;
-        periodLabel = isIndonesian
-          ? `${action.data.days || 7} Hari Terakhir`
-          : `Last ${action.data.days || 7} Days`;
+        periodLabel = `the last ${action.data.days || 7} days`;
         break;
 
       case 'date_range':
         startDate = action.data.startDate;
         endDate = action.data.endDate;
-        periodLabel = `${startDate} ${isIndonesian ? 'sampai' : 'to'} ${endDate}`;
+        periodLabel = `the period from ${startDate} to ${endDate}`;
         break;
 
       default:
-        return isIndonesian ? 'Tipe query tidak valid' : 'Invalid query type';
+        return 'Invalid query type';
     }
 
     // Fetch calorie data
@@ -371,116 +367,87 @@ async function generateDateRangeSummary(
     const avgDailyConsumed = Math.round(totalCaloriesConsumed / daysDiff);
     const avgDailyBurned = Math.round(totalCaloriesBurned / daysDiff);
 
-    // Build summary message with language support
-    const labels = isIndonesian ? {
-      summary: 'Ringkasan',
-      foodConsumed: 'Makanan yang dikonsumsi:',
-      food: 'Makanan',
-      moreItems: 'item lainnya',
-      exercises: 'Olahraga:',
-      burned: 'terbakar',
-      moreExercises: 'olahraga lainnya',
-      totals: 'Total:',
-      consumed: 'Konsumsi',
-      net: 'Net',
-      dailyAverage: 'Rata-rata Harian:',
-      perDay: '/hari',
-      overTarget: 'Melebihi target',
-      underTarget: 'Di bawah target',
-      onTarget: 'Tepat target!'
-    } : {
-      summary: 'Summary',
-      foodConsumed: 'Food consumed:',
-      food: 'Food',
-      moreItems: 'more items',
-      exercises: 'Exercises:',
-      burned: 'burned',
-      moreExercises: 'more exercises',
-      totals: 'Totals:',
-      consumed: 'Consumed',
-      net: 'Net',
-      dailyAverage: 'Daily Average:',
-      perDay: '/day',
-      overTarget: 'Over target by',
-      underTarget: 'Under target by',
-      onTarget: 'On target!'
-    };
+    // Organize data by date for better context
+    const foodByDate: { [date: string]: typeof calories } = {};
+    calories.forEach(entry => {
+      const date = entry.entryDate.toString();
+      if (!foodByDate[date]) foodByDate[date] = [];
+      foodByDate[date].push(entry);
+    });
 
-    let summary = `**${periodLabel} ${labels.summary}** 📊\n\n`;
+    const exerciseByDate: { [date: string]: typeof exercises } = {};
+    exercises.forEach(ex => {
+      const date = ex.entryDate.toString();
+      if (!exerciseByDate[date]) exerciseByDate[date] = [];
+      exerciseByDate[date].push(ex);
+    });
 
-    if (calories.length > 0) {
-      summary += `**${labels.foodConsumed}**\n`;
-      const foodByDate: { [date: string]: typeof calories } = {};
-      calories.forEach(entry => {
-        const date = entry.entryDate.toString();
-        if (!foodByDate[date]) foodByDate[date] = [];
-        foodByDate[date].push(entry);
-      });
-
-      Object.keys(foodByDate).sort().reverse().slice(0, 5).forEach(date => {
-        const dateEntries = foodByDate[date];
-        const dailyTotal = dateEntries.reduce((sum, e) => sum + Number(e.calories), 0);
-        summary += `\n*${date}:* ${dailyTotal} kcal\n`;
-        dateEntries.slice(0, 3).forEach(entry => {
-          summary += `  - ${entry.foodDescription || labels.food}: ${entry.calories} kcal\n`;
-        });
-        if (dateEntries.length > 3) {
-          summary += `  - ...${isIndonesian ? 'dan' : 'and'} ${dateEntries.length - 3} ${labels.moreItems}\n`;
-        }
-      });
-    }
-
-    if (exercises.length > 0) {
-      summary += `\n**${labels.exercises}**\n`;
-      const exerciseByDate: { [date: string]: typeof exercises } = {};
-      exercises.forEach(ex => {
-        const date = ex.entryDate.toString();
-        if (!exerciseByDate[date]) exerciseByDate[date] = [];
-        exerciseByDate[date].push(ex);
-      });
-
-      Object.keys(exerciseByDate).sort().reverse().slice(0, 5).forEach(date => {
-        const dateExercises = exerciseByDate[date];
-        const dailyBurned = dateExercises.reduce(
+    // Build structured data for Claude to format
+    const structuredData = {
+      period: periodLabel,
+      startDate,
+      endDate,
+      dayCount: daysDiff,
+      totals: {
+        consumed: totalCaloriesConsumed,
+        burned: totalCaloriesBurned,
+        net: netCalories,
+      },
+      averages: daysDiff > 1 ? {
+        consumedPerDay: avgDailyConsumed,
+        burnedPerDay: avgDailyBurned,
+      } : null,
+      dailyGoal: user.dailyCalorieGoal?.toNumber?.() || user.dailyCalorieGoal || null,
+      foodByDate: Object.keys(foodByDate).sort().reverse().slice(0, 5).map(date => ({
+        date,
+        total: foodByDate[date].reduce((sum, e) => sum + Number(e.calories), 0),
+        entries: foodByDate[date].slice(0, 5).map(e => ({
+          description: e.foodDescription || 'Food',
+          calories: Number(e.calories),
+        })),
+        hasMore: foodByDate[date].length > 5,
+        totalEntries: foodByDate[date].length,
+      })),
+      exerciseByDate: Object.keys(exerciseByDate).sort().reverse().slice(0, 5).map(date => ({
+        date,
+        total: exerciseByDate[date].reduce(
           (sum, e) => sum + (e.caloriesBurned?.toNumber?.() || Number(e.caloriesBurned)),
           0
-        );
-        summary += `\n*${date}:* ${dailyBurned} kcal ${labels.burned}\n`;
-        dateExercises.slice(0, 3).forEach(ex => {
-          const burned = ex.caloriesBurned?.toNumber?.() || Number(ex.caloriesBurned);
-          summary += `  - ${ex.exerciseType}: ${ex.durationMinutes} min (${burned} kcal)\n`;
-        });
-        if (dateExercises.length > 3) {
-          summary += `  - ...${isIndonesian ? 'dan' : 'and'} ${dateExercises.length - 3} ${labels.moreExercises}\n`;
-        }
-      });
-    }
+        ),
+        entries: exerciseByDate[date].slice(0, 5).map(e => ({
+          type: e.exerciseType,
+          duration: e.durationMinutes,
+          burned: e.caloriesBurned?.toNumber?.() || Number(e.caloriesBurned),
+        })),
+        hasMore: exerciseByDate[date].length > 5,
+        totalEntries: exerciseByDate[date].length,
+      })),
+    };
 
-    summary += `\n**${labels.totals}**\n`;
-    summary += `- ${labels.consumed}: ${totalCaloriesConsumed} kcal\n`;
-    summary += `- ${labels.burned.charAt(0).toUpperCase() + labels.burned.slice(1)}: ${totalCaloriesBurned} kcal\n`;
-    summary += `- ${labels.net}: ${netCalories} kcal\n`;
+    // Create a prompt for Claude to format this naturally
+    const summaryPrompt = `The user requested a summary for ${periodLabel}. Format this data naturally in the user's language and communication style:
 
-    if (daysDiff > 1) {
-      summary += `\n**${labels.dailyAverage}**\n`;
-      summary += `- ${labels.consumed}: ${avgDailyConsumed} kcal${labels.perDay}\n`;
-      summary += `- ${labels.burned.charAt(0).toUpperCase() + labels.burned.slice(1)}: ${avgDailyBurned} kcal${labels.perDay}\n`;
+${JSON.stringify(structuredData, null, 2)}
 
-      // Calculate vs target
-      if (user.dailyCalorieGoal) {
-        const dailyGoal = user.dailyCalorieGoal.toNumber();
-        const diff = avgDailyConsumed - dailyGoal;
-        if (diff > 0) {
-          summary += `- ${labels.overTarget} ${diff} kcal${labels.perDay} 📈\n`;
-        } else if (diff < 0) {
-          summary += `- ${labels.underTarget} ${Math.abs(diff)} kcal${labels.perDay} 📉\n`;
-        } else {
-          summary += `- ${labels.onTarget} ✅\n`;
-        }
-      }
-    }
+Important:
+- Use the user's language (detect from conversation history)
+- Match their communication style (formal/casual, emoji usage, etc.)
+- Tell a story, don't just dump data
+- Highlight interesting patterns (e.g., "strong start to the week", "weekend splurge", etc.)
+- Compare to their daily goal if available
+- Be encouraging if they're on track, supportive if they're struggling
+- Keep it conversational and engaging`;
 
-    return summary;
+    // Use Claude to format the summary naturally
+    const response = await processWithContext(
+      summaryPrompt,
+      conversationContext,
+      user,
+      undefined, // No today summary needed
+      undefined  // No today exercises needed
+    );
+
+    return response;
   } catch (error) {
     console.error('Error generating date range summary:', error);
     return 'Sorry, I encountered an error generating the summary.';
@@ -493,7 +460,8 @@ async function generateDateRangeSummary(
 async function executeAction(
   action: any,
   userId: string,
-  user?: any
+  user?: any,
+  conversationContext?: any[]
 ): Promise<string | void> {
   try {
     switch (action.type) {
@@ -674,7 +642,12 @@ async function executeAction(
         // For historical queries, generate summary from database
         if (user) {
           console.log('📊 Generating historical summary for:', action.data.type);
-          const summary = await generateDateRangeSummary(action, userId, user);
+          const summary = await generateDateRangeSummary(
+            action,
+            userId,
+            user,
+            conversationContext || []
+          );
           return summary;
         }
         break;
