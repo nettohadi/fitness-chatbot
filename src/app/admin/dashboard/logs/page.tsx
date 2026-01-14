@@ -100,7 +100,7 @@ export default async function LogsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {logs.map((log) => (
-                    <tr key={log.id}>
+                    <tr key={log.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => window.location.href = `/admin/dashboard/logs/${log.id}`}>
                       <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
                         <div className="text-gray-900">
                           {new Date(log.createdAt).toLocaleTimeString()}
