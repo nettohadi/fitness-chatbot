@@ -2,9 +2,9 @@
 
 import { signIn } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useState, FormEvent } from "react"
+import { useState, FormEvent, Suspense } from "react"
 
-export default function AdminLoginPage() {
+function AdminLoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [email, setEmail] = useState("")
@@ -118,5 +118,13 @@ export default function AdminLoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <AdminLoginForm />
+    </Suspense>
   )
 }
