@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import StatsCard from "@/components/admin/StatsCard"
+import Link from "next/link"
 
 async function getDashboardStats() {
   // Get total users
@@ -126,7 +127,7 @@ export default async function AdminDashboardPage() {
               Quick Actions
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <a
+              <Link
                 href="/admin/dashboard/users"
                 className="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
               >
@@ -136,9 +137,9 @@ export default async function AdminDashboardPage() {
                 <p className="mt-1 text-sm text-gray-500">
                   Browse and manage user accounts
                 </p>
-              </a>
+              </Link>
 
-              <a
+              <Link
                 href="/admin/dashboard/logs"
                 className="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
               >
@@ -148,9 +149,9 @@ export default async function AdminDashboardPage() {
                 <p className="mt-1 text-sm text-gray-500">
                   Monitor Claude API usage and costs
                 </p>
-              </a>
+              </Link>
 
-              <a
+              <Link
                 href="/admin/dashboard/analytics"
                 className="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
               >
@@ -160,10 +161,12 @@ export default async function AdminDashboardPage() {
                 <p className="mt-1 text-sm text-gray-500">
                   Analyze usage patterns and trends
                 </p>
-              </a>
+              </Link>
 
               <a
                 href="/api/cron/cleanup"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="block p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
               >
                 <h3 className="text-sm font-medium text-gray-900">
