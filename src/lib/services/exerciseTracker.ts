@@ -63,8 +63,8 @@ export function calculateCaloriesBurned(
   durationMinutes: number,
   weightKg: number
 ): { calories: number; metValue: number } {
-  const exerciseKey = exerciseType.toLowerCase().trim();
-  const metValue = MET_VALUES[exerciseKey] || 5.0; // Default MET if unknown
+  // Get MET value (returns 5.0 default if exercise type not found)
+  const metValue = getMetValue(exerciseType);
 
   const durationHours = durationMinutes / 60;
   const calories = metValue * weightKg * durationHours;
@@ -81,6 +81,13 @@ export function calculateCaloriesBurned(
  * @param input - User's exercise input
  * @returns Matching exercise type or null if no match found
  */
+/**
+ * Find exercise type with fuzzy matching
+ * Supports both exact English matches and Claude's translations
+ *
+ * @param input - Exercise type (can be from any language, Claude translates to English)
+ * @returns Matched exercise key or null if not found
+ */
 export function findExerciseType(input: string): string | null {
   const normalized = input.toLowerCase().trim();
 
@@ -89,12 +96,20 @@ export function findExerciseType(input: string): string | null {
     return normalized;
   }
 
-  // Partial match
+  // Partial match (for slight variations)
   const matches = Object.keys(MET_VALUES).filter(
     (key) => key.includes(normalized) || normalized.includes(key)
   );
 
-  return matches.length > 0 ? matches[0] : null;
+  if (matches.length > 0) {
+    return matches[0];
+  }
+
+  // No match found - will use default MET value (5.0)
+  // Claude should translate to English, but if it doesn't match exactly,
+  // we'll use the input as-is and apply default MET
+  console.warn(`⚠️ Exercise type not found in MET_VALUES: "${input}" - using default MET 5.0`);
+  return null;
 }
 
 /**
@@ -125,4 +140,36 @@ export function getSuggestions(partial: string, limit: number = 5): string[] {
   );
 
   return matches.slice(0, limit);
+}
+
+/**
+ * Validate that a calculated calorie value matches the expected formula result
+ *
+ * @param metValue - MET value for the exercise
+ * @param weightKg - User's weight in kilograms
+ * @param durationMinutes - Duration in minutes
+ * @param expectedCalories - The calorie value to validate
+ * @returns True if the value is within acceptable tolerance (±2 kcal)
+ */
+export function validateExerciseCalculation(
+  metValue: number,
+  weightKg: number,
+  durationMinutes: number,
+  expectedCalories: number
+): boolean {
+  const calculated = Math.round(metValue * weightKg * (durationMinutes / 60));
+  const tolerance = 2; // Allow 2 kcal difference for rounding
+  return Math.abs(calculated - expectedCalories) <= tolerance;
+}
+
+/**
+ * Get MET value for an exercise type
+ * If exercise type is not found, returns default MET value
+ *
+ * @param exerciseType - Exercise type (should be in English)
+ * @returns MET value for the exercise
+ */
+export function getMetValue(exerciseType: string): number {
+  const normalized = exerciseType.toLowerCase().trim();
+  return MET_VALUES[normalized] || 5.0; // Default MET if not found
 }

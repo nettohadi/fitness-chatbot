@@ -57,6 +57,28 @@ interface TelegramUpdate {
   };
 }
 
+/**
+ * Clean response to ensure no JSON leaks to user
+ */
+function cleanResponseForUser(response: string): string {
+  // Remove JSON code blocks
+  let cleaned = response.replace(/```json[\s\S]*?```/g, '').trim();
+
+  // If response starts with { or [, it might be raw JSON - extract userMessage
+  if (cleaned.startsWith('{') || cleaned.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(cleaned);
+      if (parsed.userMessage) {
+        cleaned = parsed.userMessage;
+      }
+    } catch (e) {
+      // Not valid JSON, leave as is
+    }
+  }
+
+  return cleaned;
+}
+
 export async function POST(request: NextRequest) {
   try {
     // Parse the JSON data from Telegram
@@ -126,12 +148,15 @@ export async function POST(request: NextRequest) {
         console.log('[OPTIMIZATION] Executing context action:', contextAction.type);
         console.log('[OPTIMIZATION] Skipping DB queries - using cached context');
 
-        const responseText = await executeAction(contextAction, user.id, user, conversationHistory);
+        let responseText = await executeAction(contextAction, user.id, user, conversationHistory);
+
+        // Clean response to ensure no JSON leaks
+        responseText = cleanResponseForUser(responseText || 'Done!');
 
         await Promise.all([
-          sendTelegramMessage(chatId, responseText || 'Done!', 'Markdown'),
-          logConversation(userIdentifier, 'outgoing', responseText || 'Done!'),
-          addMessageToCache(userIdentifier, 'assistant', responseText || 'Done!')
+          sendTelegramMessage(chatId, responseText, 'Markdown'),
+          logConversation(userIdentifier, 'outgoing', responseText),
+          addMessageToCache(userIdentifier, 'assistant', responseText)
         ]);
 
         return NextResponse.json({ success: true });
@@ -156,7 +181,10 @@ export async function POST(request: NextRequest) {
 
       if (parsedAction && parsedAction.type !== 'none') {
         await executeAction(parsedAction, user.id, user, conversationHistory);
-        const responseText = parsedAction.userMessage || response;
+        let responseText = parsedAction.userMessage || response;
+
+        // Clean response to ensure no JSON leaks
+        responseText = cleanResponseForUser(responseText);
 
         await Promise.all([
           sendTelegramMessage(chatId, responseText, 'Markdown'),
@@ -164,10 +192,13 @@ export async function POST(request: NextRequest) {
           addMessageToCache(userIdentifier, 'assistant', responseText)
         ]);
       } else {
+        // Clean response to ensure no JSON leaks
+        const cleanedResponse = cleanResponseForUser(response);
+
         await Promise.all([
-          sendTelegramMessage(chatId, response, 'Markdown'),
-          logConversation(userIdentifier, 'outgoing', response),
-          addMessageToCache(userIdentifier, 'assistant', response)
+          sendTelegramMessage(chatId, cleanedResponse, 'Markdown'),
+          logConversation(userIdentifier, 'outgoing', cleanedResponse),
+          addMessageToCache(userIdentifier, 'assistant', cleanedResponse)
         ]);
       }
 
@@ -263,6 +294,9 @@ export async function POST(request: NextRequest) {
 
         responseMessage = claudeResponse;
       }
+
+      // Clean response to ensure no JSON leaks to user
+      responseMessage = cleanResponseForUser(responseMessage);
     } finally {
       clearInterval(typingInterval);
       const processingEndTime = Date.now();
@@ -523,14 +557,43 @@ async function executeAction(
       case 'save_exercise':
         const exerciseType = findExerciseType(action.data.exerciseType) || action.data.exerciseType;
 
+        // Calculate calories burned SERVER-SIDE for accuracy
+        const { calculateCaloriesBurned, validateExerciseCalculation } = await import('@/lib/services/exerciseTracker');
+        const weightKg = user?.weightKg?.toNumber ? user.weightKg.toNumber() : Number(user?.weightKg) || 70;
+        const { calories: serverCalories, metValue: serverMetValue } = calculateCaloriesBurned(
+          exerciseType,
+          action.data.durationMinutes,
+          weightKg
+        );
+
+        // Validate that Claude's suggested value matches (within tolerance)
+        if (action.data.caloriesBurned) {
+          const isValid = validateExerciseCalculation(
+            serverMetValue,
+            weightKg,
+            action.data.durationMinutes,
+            action.data.caloriesBurned
+          );
+
+          if (!isValid) {
+            console.warn(
+              `⚠️ Exercise calorie calculation mismatch! ` +
+              `Claude suggested: ${action.data.caloriesBurned}, ` +
+              `Server calculated: ${serverCalories} ` +
+              `(MET: ${serverMetValue}, Weight: ${weightKg}kg, Duration: ${action.data.durationMinutes}min)`
+            );
+          }
+        }
+
+        // Always use the precise SERVER-SIDE calculation
         await addExerciseEntry(
           userId,
           exerciseType,
           action.data.durationMinutes,
-          action.data.caloriesBurned,
-          action.data.metValue
+          serverCalories,  // Use server calculation
+          serverMetValue   // Use server MET value
         );
-        console.log('✅ Saved exercise:', exerciseType, action.data.durationMinutes, 'min');
+        console.log('✅ Saved exercise:', exerciseType, action.data.durationMinutes, 'min,', serverCalories, 'kcal');
         // Invalidate cache after saving
         invalidateTodayCache(userId);
         break;
@@ -565,13 +628,38 @@ async function executeAction(
       case 'replace_exercise':
         console.log('🔄 Replacing exercise with multiple entries');
         console.log('📊 New entries:', JSON.stringify(action.data.newEntries, null, 2));
+
+        // Recalculate each entry SERVER-SIDE for accuracy
+        const { calculateCaloriesBurned: calcCals } = await import('@/lib/services/exerciseTracker');
+        const userWeight = user?.weightKg?.toNumber ? user.weightKg.toNumber() : Number(user?.weightKg) || 70;
+
+        const recalculatedEntries = action.data.newEntries.map((entry: any) => {
+          const { calories, metValue } = calcCals(
+            entry.exerciseType,
+            entry.durationMinutes,
+            userWeight
+          );
+
+          console.log(
+            `🔢 Recalculated: ${entry.exerciseType} ${entry.durationMinutes}min = ${calories}kcal ` +
+            `(Claude: ${entry.caloriesBurned}kcal)`
+          );
+
+          return {
+            exerciseType: entry.exerciseType,
+            durationMinutes: entry.durationMinutes,
+            caloriesBurned: calories,  // Use server calculation
+            metValue: metValue         // Use server MET value
+          };
+        });
+
         const replaceResult = await replaceExerciseWithMultiple(
           action.data.exerciseId,
           userId,
-          action.data.newEntries
+          recalculatedEntries  // Use recalculated entries
         );
         if (replaceResult.success) {
-          console.log('✅ Exercise replaced successfully with', action.data.newEntries.length, 'new entries');
+          console.log('✅ Exercise replaced successfully with', recalculatedEntries.length, 'new entries');
           // Invalidate cache after replace
           invalidateTodayCache(userId);
         } else {
@@ -636,7 +724,7 @@ async function executeAction(
         // For "today" queries, Claude already generated the summary in userMessage
         if (action.data.type === 'today') {
           console.log('📊 Today query - using Claude-generated summary');
-          break;
+          return action.userMessage || 'Summary generated successfully.';
         }
 
         // For historical queries, generate summary from database
@@ -650,7 +738,10 @@ async function executeAction(
           );
           return summary;
         }
-        break;
+
+        // Fallback
+        return action.userMessage || 'Unable to generate summary.';
+
 
       default:
         console.log('No action to execute:', action.type);

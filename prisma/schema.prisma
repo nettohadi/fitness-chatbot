@@ -73,7 +73,55 @@ model User {
   deficitTarget     Decimal?        @map("deficit_target") @db.Decimal(6, 2)
   calorieEntries    CalorieEntry[]
   exerciseEntries   ExerciseEntry[]
+  claudeApiLogs     ClaudeApiLog[]
 
   @@index([phoneNumber], map: "idx_users_phone")
   @@map("users")
+}
+
+/// Admin users table for dashboard authentication
+model AdminUser {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String    @unique @db.VarChar(255)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  fullName     String    @map("full_name") @db.VarChar(100)
+  role         String    @default("admin") @db.VarChar(20)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(6)
+
+  @@map("admin_users")
+}
+
+/// Claude API logs for monitoring and debugging
+model ClaudeApiLog {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String?  @map("user_id") @db.Uuid
+  model        String   @db.VarChar(50)
+  systemPrompt String   @map("system_prompt") @db.Text
+  messages     Json
+  response     String   @db.Text
+  inputTokens  Int      @map("input_tokens")
+  outputTokens Int      @map("output_tokens")
+  totalCost    Decimal  @map("total_cost") @db.Decimal(10, 6)
+  latencyMs    Int      @map("latency_ms")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user         User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("claude_api_logs")
+}
+
+/// OTP sessions for user dashboard authentication
+model OtpSession {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  phoneNumber String   @map("phone_number") @db.VarChar(20)
+  otpCode     String   @map("otp_code") @db.VarChar(6)
+  expiresAt   DateTime @map("expires_at") @db.Timestamptz(6)
+  verified    Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([phoneNumber, expiresAt])
+  @@map("otp_sessions")
 }

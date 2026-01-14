@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { CachedMessage } from '@/lib/cache/conversationCache';
 import type { User } from '@/types';
+import { logClaudeApiCall } from '@/lib/utils/apiLogger';
 
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
@@ -39,6 +40,8 @@ export async function processWithContext(
   ];
 
   try {
+    const startTime = Date.now();
+
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
@@ -46,9 +49,25 @@ export async function processWithContext(
       messages: messages,
     });
 
+    const latencyMs = Date.now() - startTime;
+
     // Extract text from response
     const textContent = response.content.find((block) => block.type === 'text');
-    return textContent?.type === 'text' ? textContent.text : 'Sorry, I could not process that.';
+    const responseText = textContent?.type === 'text' ? textContent.text : 'Sorry, I could not process that.';
+
+    // Log API call to database (async, non-blocking)
+    logClaudeApiCall({
+      userId: user.id,
+      model: response.model,
+      systemPrompt,
+      messages,
+      response: responseText,
+      inputTokens: response.usage.input_tokens,
+      outputTokens: response.usage.output_tokens,
+      latencyMs,
+    }).catch((err) => console.error('Failed to log API call:', err));
+
+    return responseText;
   } catch (error) {
     console.error('Error calling Claude API:', error);
     throw error;
@@ -211,10 +230,141 @@ When user confirms update, respond with JSON:
 
 ### 4. Exercise Logging & Updates
 
+**CRITICAL - Exercise Calorie Calculation Rules:**
+
+When user provides exercise information:
+1. Extract: exercise type, duration (minutes)
+2. **CRITICAL: MATCH user's exercise to the predefined list below**
+   - User says "sepeda statis", "sepeda", "bersepeda" (Indonesian) → Match to "cycling"
+   - User says "lari", "berlari", "jogging" (Indonesian) → Match to "running" or "jogging"
+   - User says "renang", "berenang" (Indonesian) → Match to "swimming"
+   - User says "jalan kaki", "jalan", "walking" → Match to "walking"
+   - User says "angkat beban", "gym", "fitness" → Match to "weights" or "gym"
+   - For ANY language, match to the closest equivalent from the list below
+   - If no close match, use "gym" (3.5 MET) as general default
+3. **Calculate calories using the PRECISE FORMULA:**
+   - Formula: Calories = MET × Weight(kg) × (Duration in minutes ÷ 60)
+   - Use Math.round() for the final result
+   - Example: cycling 30 min at 76kg = 6.8 × 76 × (30/60) = 6.8 × 76 × 0.5 = 258.4 → 258 kcal
+
+**MET VALUES TABLE (use these EXACT values):**
+Cardio:
+- walking: 3.5 MET
+- running: 8.0 MET
+- jogging: 7.0 MET
+- cycling: 6.8 MET
+- swimming: 8.0 MET
+- rowing: 7.0 MET
+- elliptical trainer: 5.0 MET
+
+Strength:
+- gym: 3.5 MET
+- weights: 3.5 MET
+- weight training: 3.5 MET
+- bodyweight: 3.8 MET
+- strength training: 3.5 MET
+
+Sports:
+- basketball: 6.5 MET
+- soccer: 7.0 MET
+- football: 8.0 MET
+- tennis: 7.3 MET
+- badminton: 5.5 MET
+- volleyball: 4.0 MET
+- table tennis: 4.0 MET
+
+Group Fitness:
+- yoga: 2.5 MET
+- pilates: 3.0 MET
+- hiit: 8.0 MET
+- zumba: 6.5 MET
+- aerobics: 6.5 MET
+- spinning: 8.5 MET
+- crossfit: 8.0 MET
+
+Other:
+- dancing: 4.8 MET
+- hiking: 6.0 MET
+- boxing: 9.0 MET
+- martial arts: 10.0 MET
+- climbing: 8.0 MET
+- skateboarding: 5.0 MET
+- jump rope: 10.0 MET
+
+**PREDEFINED EXERCISE TYPES (use EXACTLY as written):**
+walking, running, jogging, cycling, swimming, rowing, elliptical trainer, gym, weights, weight training, bodyweight, strength training, basketball, soccer, football, tennis, badminton, volleyball, table tennis, yoga, pilates, hiit, zumba, aerobics, spinning, crossfit, dancing, hiking, boxing, martial arts, climbing, skateboarding, jump rope
+
+**How to Match and Calculate:**
+1. Understand what exercise user is describing (in ANY language)
+2. Find the closest match from the predefined list above
+3. Use EXACTLY that word in your JSON (lowercase, no variations)
+4. Look up the MET value from the table above
+5. Calculate: Math.round(MET × user_weight_kg × (duration_minutes / 60))
+6. DO NOT show your calculation work to the user - just present the result
+
+**Example - CORRECT:**
+User: "Saya sepeda statis 30 menit" (Indonesian - stationary bike, user weighs 76kg)
+You match: "sepeda statis" → "cycling" (6.8 MET)
+You calculate: Math.round(6.8 × 76 × (30/60)) = Math.round(6.8 × 76 × 0.5) = Math.round(258.4) = 258
+You respond: "Mantap! 30 menit cycling membakar 258 kalori. Simpan? (ya/tidak)"
+JSON you send:
+\`\`\`json
+{
+  "action": "save_exercise",
+  "data": {
+    "exerciseType": "cycling",
+    "durationMinutes": 30,
+    "caloriesBurned": 258,
+    "metValue": 6.8
+  }
+}
+\`\`\`
+
+**Example - CORRECT with intensity:**
+User: "I did spinning for 45 minutes" (user weighs 76kg)
+You match: "spinning" (8.5 MET from table)
+You calculate: Math.round(8.5 × 76 × (45/60)) = Math.round(8.5 × 76 × 0.75) = Math.round(484.5) = 485
+You respond: "Great! 45 minutes of spinning burned 485 calories. Save?"
+JSON you send:
+\`\`\`json
+{
+  "action": "save_exercise",
+  "data": {
+    "exerciseType": "spinning",
+    "durationMinutes": 45,
+    "caloriesBurned": 485,
+    "metValue": 8.5
+  }
+}
+\`\`\`
+
+**Example - WRONG ❌:**
+User: "Saya sepeda statis 30 menit"
+JSON you send:
+\`\`\`json
+{
+  "data": {
+    "exerciseType": "sepeda statis"  // ❌ WRONG! Not from predefined list
+  }
+}
+\`\`\`
+
+**Example - WRONG ❌:**
+User: "I cycled for 30 minutes"
+You calculate: 6.8 × 76 × 0.5 = 258
+You respond: "Let me calculate: 6.8 × 76 × 0.5 = 258... hmm wait, let me recalculate..." ❌
+**DO NOT show calculation steps to user! Just present the final result.**
+
+For split exercises (e.g., "10 min level 5, 20 min level 6"):
+- Create separate entries for each intensity level
+- Use higher MET values for higher intensity (e.g., cycling level 5 = 6.8 MET, level 6 = 8.0 MET)
+- Calculate each segment precisely with the formula
+- Present total calories burned to user
+
 **New Exercise:**
 - If user mentions exercise for the first time today, create new entry
 - Ask for type and duration if not provided
-- Calculate calories burned based on exercise and user's weight
+- Estimate calories burned (system will calculate precisely)
 - Provide your estimate and ASK for confirmation: "Simpan? (ya/tidak)" or "Save? (yes/no)"
 - **CRITICAL**: When user confirms (says "yes", "ya", "ok", etc.), you MUST respond with JSON in a code block:
 
