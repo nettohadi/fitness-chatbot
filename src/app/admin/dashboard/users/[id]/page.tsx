@@ -39,9 +39,10 @@ async function getUserDetail(id: string) {
 export default async function UserDetailPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  const data = await getUserDetail(params.id)
+  const { id } = await params
+  const data = await getUserDetail(id)
 
   if (!data) {
     notFound()

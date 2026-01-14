@@ -22,15 +22,31 @@ async function getLogDetail(id: string) {
 export default async function LogDetailPage({
   params,
 }: {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }) {
-  const log = await getLogDetail(params.id)
+  const { id } = await params
+  const log = await getLogDetail(id)
 
   if (!log) {
     notFound()
   }
 
   const messages = log.messages as any[]
+
+  // Build complete prompt as sent to Claude
+  const completePrompt = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SYSTEM PROMPT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${log.systemPrompt}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONVERSATION HISTORY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+${messages.map((msg: any, idx: number) =>
+  `[${msg.role.toUpperCase()}]:\n${msg.content}`
+).join('\n\n---\n\n')}`
 
   return (
     <div className="px-4 py-6 sm:px-0">
@@ -103,57 +119,32 @@ export default async function LogDetailPage({
         </div>
       </div>
 
-      {/* System Prompt */}
+      {/* Complete Prompt Sent to Claude */}
       <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
-        <div className="px-4 py-5 sm:px-6 bg-blue-50">
+        <div className="px-4 py-5 sm:px-6 bg-indigo-50 flex justify-between items-center">
           <h3 className="text-lg leading-6 font-medium text-gray-900">
-            System Prompt
+            Complete Prompt Sent to Claude
           </h3>
+          <span className="text-xs text-gray-500">
+            Includes system prompt + conversation history + user message
+          </span>
         </div>
         <div className="px-4 py-5 sm:px-6">
-          <pre className="whitespace-pre-wrap text-sm text-gray-700 bg-gray-50 p-4 rounded overflow-x-auto max-h-96 overflow-y-auto">
-            {log.systemPrompt}
+          <pre className="whitespace-pre-wrap text-xs text-gray-700 bg-gray-50 p-4 rounded overflow-x-auto max-h-[600px] overflow-y-auto font-mono border border-gray-200">
+            {completePrompt}
           </pre>
-        </div>
-      </div>
-
-      {/* Conversation Messages */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
-        <div className="px-4 py-5 sm:px-6 bg-green-50">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
-            Conversation ({messages.length} messages)
-          </h3>
-        </div>
-        <div className="px-4 py-5 sm:px-6 space-y-4">
-          {messages.map((msg: any, idx: number) => (
-            <div
-              key={idx}
-              className={`p-4 rounded ${
-                msg.role === "user"
-                  ? "bg-blue-50 border-l-4 border-blue-500"
-                  : "bg-green-50 border-l-4 border-green-500"
-              }`}
-            >
-              <div className="font-semibold text-sm mb-2 text-gray-700">
-                {msg.role === "user" ? "👤 User" : "🤖 Assistant"}
-              </div>
-              <pre className="whitespace-pre-wrap text-sm text-gray-900">
-                {msg.content}
-              </pre>
-            </div>
-          ))}
         </div>
       </div>
 
       {/* Response */}
       <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-        <div className="px-4 py-5 sm:px-6 bg-purple-50">
+        <div className="px-4 py-5 sm:px-6 bg-green-50">
           <h3 className="text-lg leading-6 font-medium text-gray-900">
             Claude Response
           </h3>
         </div>
         <div className="px-4 py-5 sm:px-6">
-          <pre className="whitespace-pre-wrap text-sm text-gray-900 bg-gray-50 p-4 rounded">
+          <pre className="whitespace-pre-wrap text-sm text-gray-900 bg-gray-50 p-4 rounded font-mono border border-gray-200">
             {log.response}
           </pre>
         </div>
