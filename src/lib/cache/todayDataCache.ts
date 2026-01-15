@@ -29,6 +29,7 @@ export async function getCachedTodayData(userId: string): Promise<TodayData> {
   }
 
   console.log('[CACHE] Miss - fetching today data from DB:', userId);
+  console.log('Today date', getTodayDate())
 
   // Fetch from database
   const [summaryResult, exercisesResult] = await Promise.all([

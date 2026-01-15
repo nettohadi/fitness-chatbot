@@ -38,6 +38,7 @@
     "next": "15.1.9",
     "next-auth": "^4.24.13",
     "node-telegram-bot-api": "^0.67.0",
+    "openai": "^6.16.0",
     "pg": "^8.16.3",
     "prisma": "^7.2.0",
     "react": "^19.0.0",

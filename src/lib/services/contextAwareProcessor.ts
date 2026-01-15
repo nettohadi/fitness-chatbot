@@ -1,11 +1,22 @@
-import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import type { CachedMessage } from '@/lib/cache/conversationCache';
 import type { User } from '@/types';
 import { logClaudeApiCall } from '@/lib/utils/apiLogger';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+// Use OpenRouter for Qwen3 32B
+const openrouter = new OpenAI({
+  baseURL: 'https://openrouter.ai/api/v1',
+  apiKey: process.env.OPENROUTER_API_KEY,
 });
+
+// Model configuration
+const MODEL_ID = 'qwen/qwen3-32b'; // or 'qwen/qwen3-32b-free' for free tier
+
+// Pricing per 1M tokens (for cost calculation)
+const PRICING = {
+  input: 0.20,  // $0.20 per 1M input tokens
+  output: 0.50, // $0.50 per 1M output tokens
+};
 
 /**
  * Process user message with conversation context using Claude AI
@@ -27,8 +38,9 @@ export async function processWithContext(
 ): Promise<string> {
   const systemPrompt = buildSystemPrompt(user, todaySummary, todayExercises);
 
-  // Convert conversation history to Claude message format
-  const messages: Anthropic.MessageParam[] = [
+  // Convert conversation history to OpenAI message format
+  const messages: OpenAI.ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
     ...conversationHistory.map((m) => ({
       role: m.role as 'user' | 'assistant',
       content: m.content,
@@ -42,34 +54,59 @@ export async function processWithContext(
   try {
     const startTime = Date.now();
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+    const response = await openrouter.chat.completions.create({
+      model: MODEL_ID,
       max_tokens: 1024,
-      system: systemPrompt,
       messages: messages,
+      // Disable thinking mode for Qwen3 to get response in content field
+      // @ts-ignore - OpenRouter-specific parameter
+      extra_body: {
+        chat_template_kwargs: { enable_thinking: false }
+      }
     });
 
     const latencyMs = Date.now() - startTime;
 
     // Extract text from response
-    const textContent = response.content.find((block) => block.type === 'text');
-    const responseText = textContent?.type === 'text' ? textContent.text : 'Sorry, I could not process that.';
+    // Qwen3 may return content in 'reasoning' field if thinking mode is enabled
+    const message = response.choices[0]?.message;
+    let responseText = message?.content || '';
+
+    // If content is empty, check if there's a reasoning field (Qwen3 thinking mode)
+    if (!responseText && message && 'reasoning' in message) {
+      console.log('⚠️ Qwen3 returned empty content, extracting from reasoning field');
+      responseText = (message as any).reasoning || 'Sorry, I could not process that.';
+    }
+
+    if (!responseText) {
+      responseText = 'Sorry, I could not process that.';
+    }
+
+    console.log({response: response.choices[0]})
+
+    // Calculate tokens and cost
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
+    const totalCost = (inputTokens * PRICING.input + outputTokens * PRICING.output) / 1_000_000;
 
     // Log API call to database (async, non-blocking)
+    // Remove system message from logged messages for consistency
+    const logMessages = messages.slice(1);
     logClaudeApiCall({
       userId: user.id,
-      model: response.model,
+      model: response.model || MODEL_ID,
       systemPrompt,
-      messages,
+      messages: logMessages,
       response: responseText,
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
+      inputTokens,
+      outputTokens,
       latencyMs,
+      totalCost,
     }).catch((err) => console.error('Failed to log API call:', err));
 
     return responseText;
   } catch (error) {
-    console.error('Error calling Claude API:', error);
+    console.error('Error calling OpenRouter API:', error);
     throw error;
   }
 }
@@ -638,7 +675,7 @@ function buildUserProfileInfo(user: User): string {
 }
 
 /**
- * Estimate calories for food using Claude
+ * Estimate calories for food using AI
  * (Fallback for when context processor doesn't provide estimate)
  */
 export async function estimateCalories(
@@ -655,8 +692,8 @@ Confidence: [high/medium/low]
 Reasoning: [brief explanation]`;
 
   try {
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+    const response = await openrouter.chat.completions.create({
+      model: MODEL_ID,
       max_tokens: 256,
       messages: [
         {
@@ -666,15 +703,15 @@ Reasoning: [brief explanation]`;
       ],
     });
 
-    const text = response.content.find((block) => block.type === 'text');
-    if (!text || text.type !== 'text') {
-      throw new Error('No text response from Claude');
+    const text = response.choices[0]?.message?.content;
+    if (!text) {
+      throw new Error('No text response from AI');
     }
 
     // Parse response
-    const caloriesMatch = text.text.match(/Calories:\s*(\d+)/i);
-    const confidenceMatch = text.text.match(/Confidence:\s*(high|medium|low)/i);
-    const reasoningMatch = text.text.match(/Reasoning:\s*(.+)/i);
+    const caloriesMatch = text.match(/Calories:\s*(\d+)/i);
+    const confidenceMatch = text.match(/Confidence:\s*(high|medium|low)/i);
+    const reasoningMatch = text.match(/Reasoning:\s*(.+)/i);
 
     return {
       calories: caloriesMatch ? parseInt(caloriesMatch[1]) : 0,

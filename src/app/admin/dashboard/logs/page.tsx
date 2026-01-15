@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import LogRow from "@/components/admin/LogRow"
 
 async function getApiLogs(limit: number = 50) {
   const logs = await prisma.claudeApiLog.findMany({
@@ -47,7 +48,19 @@ async function getLogStats() {
 }
 
 export default async function LogsPage() {
-  const [logs, stats] = await Promise.all([getApiLogs(), getLogStats()])
+  const [logsRaw, stats] = await Promise.all([getApiLogs(), getLogStats()])
+
+  // Serialize logs for client component (convert Decimal and Date to plain types)
+  const logs = logsRaw.map((log) => ({
+    id: log.id,
+    createdAt: log.createdAt.toISOString(),
+    model: log.model,
+    inputTokens: log.inputTokens,
+    outputTokens: log.outputTokens,
+    totalCost: log.totalCost.toNumber(),
+    latencyMs: log.latencyMs,
+    user: log.user,
+  }))
 
   return (
     <div className="px-4 py-6 sm:px-0">
@@ -100,47 +113,7 @@ export default async function LogsPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white">
                   {logs.map((log) => (
-                    <tr key={log.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => window.location.href = `/admin/dashboard/logs/${log.id}`}>
-                      <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
-                        <div className="text-gray-900">
-                          {new Date(log.createdAt).toLocaleTimeString()}
-                        </div>
-                        <div className="text-gray-500 text-xs">
-                          {new Date(log.createdAt).toLocaleDateString()}
-                        </div>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm">
-                        {log.user ? (
-                          <>
-                            <div className="text-gray-900">
-                              {log.user.fullName || log.user.nickname || "No name"}
-                            </div>
-                            <div className="text-gray-500 text-xs">
-                              {log.user.phoneNumber}
-                            </div>
-                          </>
-                        ) : (
-                          <span className="text-gray-400">System</span>
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {log.model}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm">
-                        <div className="text-gray-900">
-                          {log.inputTokens + log.outputTokens} total
-                        </div>
-                        <div className="text-gray-500 text-xs">
-                          {log.inputTokens} in / {log.outputTokens} out
-                        </div>
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-900">
-                        ${log.totalCost.toNumber().toFixed(6)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
-                        {log.latencyMs}ms
-                      </td>
-                    </tr>
+                    <LogRow key={log.id} log={log} />
                   ))}
                 </tbody>
               </table>

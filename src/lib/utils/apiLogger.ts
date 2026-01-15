@@ -1,25 +1,24 @@
 import { prisma } from "@/lib/prisma"
 
 /**
- * Claude API pricing (as of Jan 2025)
- * Model: claude-sonnet-4-20250514
+ * Default pricing (Qwen3 32B via OpenRouter)
  */
-const PRICING = {
-  INPUT_COST_PER_MILLION: 3.0, // $3 per million input tokens
-  OUTPUT_COST_PER_MILLION: 15.0, // $15 per million output tokens
+const DEFAULT_PRICING = {
+  INPUT_COST_PER_MILLION: 0.20, // $0.20 per million input tokens
+  OUTPUT_COST_PER_MILLION: 0.50, // $0.50 per million output tokens
 }
 
 /**
- * Calculate cost for API call
+ * Calculate cost for API call (default pricing)
  */
 export function calculateCost(inputTokens: number, outputTokens: number): number {
-  const inputCost = (inputTokens / 1_000_000) * PRICING.INPUT_COST_PER_MILLION
-  const outputCost = (outputTokens / 1_000_000) * PRICING.OUTPUT_COST_PER_MILLION
+  const inputCost = (inputTokens / 1_000_000) * DEFAULT_PRICING.INPUT_COST_PER_MILLION
+  const outputCost = (outputTokens / 1_000_000) * DEFAULT_PRICING.OUTPUT_COST_PER_MILLION
   return inputCost + outputCost
 }
 
 /**
- * Log Claude API call to database
+ * Log API call to database
  */
 export async function logClaudeApiCall({
   userId,
@@ -30,6 +29,7 @@ export async function logClaudeApiCall({
   inputTokens,
   outputTokens,
   latencyMs,
+  totalCost: providedCost,
 }: {
   userId?: string
   model: string
@@ -39,9 +39,11 @@ export async function logClaudeApiCall({
   inputTokens: number
   outputTokens: number
   latencyMs: number
+  totalCost?: number
 }) {
   try {
-    const totalCost = calculateCost(inputTokens, outputTokens)
+    // Use provided cost or calculate default
+    const totalCost = providedCost ?? calculateCost(inputTokens, outputTokens)
 
     await prisma.claudeApiLog.create({
       data: {

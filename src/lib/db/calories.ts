@@ -46,12 +46,17 @@ export async function getEntriesByDate(
   date: string
 ): Promise<DbResult<CalorieEntry[]>> {
   try {
-    // Create start and end of day to match all entries on this date
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
+    // Parse the date string and create start/end of day in UTC
+    // This ensures consistent date comparison regardless of server timezone
+    const [year, month, day] = date.split('-').map(Number);
 
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Create dates at UTC midnight for the requested date
+    const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+    console.log(`[DATE DEBUG] Querying date: ${date}`);
+    console.log(`[DATE DEBUG] startOfDay UTC: ${startOfDay.toISOString()}`);
+    console.log(`[DATE DEBUG] endOfDay UTC: ${endOfDay.toISOString()}`);
 
     const entries = await prisma.calorieEntry.findMany({
       where: {
@@ -65,6 +70,8 @@ export async function getEntriesByDate(
         entryTime: 'desc',
       },
     });
+
+    console.log(`[DATE DEBUG] Found ${entries.length} entries for date ${date}`);
 
     return { success: true, data: entries as unknown as CalorieEntry[] };
   } catch (error) {
@@ -221,20 +228,44 @@ export async function getWeeklySummary(
 
 /**
  * Get today's date in YYYY-MM-DD format
+ * Uses configured timezone (defaults to Asia/Jakarta for Indonesian users)
  * @returns Today's date string
  */
 export function getTodayDate(): string {
-  return new Date().toISOString().split('T')[0];
+  const timezone = process.env.APP_TIMEZONE || 'Asia/Jakarta';
+  const now = new Date();
+
+  // Format date in the specified timezone
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  const todayDate = formatter.format(now);
+  console.log(`[DATE] getTodayDate() = ${todayDate} (timezone: ${timezone})`);
+  return todayDate;
 }
 
 /**
  * Get yesterday's date in YYYY-MM-DD format
+ * Uses configured timezone (defaults to Asia/Jakarta for Indonesian users)
  * @returns Yesterday's date string
  */
 export function getYesterdayDate(): string {
+  const timezone = process.env.APP_TIMEZONE || 'Asia/Jakarta';
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
-  return yesterday.toISOString().split('T')[0];
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  return formatter.format(yesterday);
 }
 
 /**
