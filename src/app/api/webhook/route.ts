@@ -116,10 +116,8 @@ export async function POST(request: NextRequest) {
       console.error('[TYPING] Initial typing indicator failed immediately');
     }
 
-    // Log incoming message
-    await logConversation(userIdentifier, 'incoming', messageText);
-
-    // Get conversation history from cache
+    // Get conversation history BEFORE logging the current message
+    // This prevents the current message from appearing in history (avoiding duplication)
     const conversationHistory = await getConversationContext(userIdentifier);
 
     // Helper function: Check if message is a simple confirmation
@@ -149,8 +147,10 @@ export async function POST(request: NextRequest) {
         // Clean response to ensure no JSON leaks
         responseText = cleanResponseForUser(responseText || 'Done!');
 
+        // Send message and log both incoming + outgoing
         await Promise.all([
-          sendTelegramMessage(chatId, responseText, 'Markdown'),
+          sendTelegramMessage(chatId, formatForMarkdownV2(responseText), 'MarkdownV2'),
+          logConversation(userIdentifier, 'incoming', messageText),
           logConversation(userIdentifier, 'outgoing', responseText),
         ]);
 
@@ -181,16 +181,20 @@ export async function POST(request: NextRequest) {
         // Clean response to ensure no JSON leaks
         responseText = cleanResponseForUser(responseText);
 
+        // Send message and log both incoming + outgoing
         await Promise.all([
-          sendTelegramMessage(chatId, responseText, 'Markdown'),
+          sendTelegramMessage(chatId, formatForMarkdownV2(responseText), 'MarkdownV2'),
+          logConversation(userIdentifier, 'incoming', messageText),
           logConversation(userIdentifier, 'outgoing', responseText),
         ]);
       } else {
         // Clean response to ensure no JSON leaks
         const cleanedResponse = cleanResponseForUser(response);
 
+        // Send message and log both incoming + outgoing
         await Promise.all([
-          sendTelegramMessage(chatId, cleanedResponse, 'Markdown'),
+          sendTelegramMessage(chatId, formatForMarkdownV2(cleanedResponse), 'MarkdownV2'),
+          logConversation(userIdentifier, 'incoming', messageText),
           logConversation(userIdentifier, 'outgoing', cleanedResponse),
         ]);
       }
@@ -300,10 +304,13 @@ export async function POST(request: NextRequest) {
 
     // Send response back to user with MarkdownV2 formatting
     const formattedMessage = formatForMarkdownV2(responseMessage);
-    await sendTelegramMessage(chatId, formattedMessage, 'MarkdownV2');
 
-    // Log outgoing message
-    await logConversation(userIdentifier, 'outgoing', responseMessage);
+    // Send message and log both incoming + outgoing
+    await Promise.all([
+      sendTelegramMessage(chatId, formattedMessage, 'MarkdownV2'),
+      logConversation(userIdentifier, 'incoming', messageText),
+      logConversation(userIdentifier, 'outgoing', responseMessage),
+    ]);
 
     // Return success response to Telegram
     return NextResponse.json({ ok: true });

@@ -38,36 +38,30 @@ export function addMessageToCache(
 }
 
 /**
- * Get conversation history from cache or database
+ * Get conversation history from database
+ * Note: Must be called BEFORE logging the current incoming message to avoid duplication
+ * @param chatId - User identifier (phone number)
  */
 export async function getConversationContext(
   chatId: string
 ): Promise<CachedMessage[]> {
-  let messages:CachedMessage[]  = []
-;
-
   const { getConversationHistory } = await import('@/lib/db/conversations');
-    const result = await getConversationHistory(chatId, 10);
+  const result = await getConversationHistory(chatId, 10);
 
-    if (result.success && result.data) {
-      messages = result.data
-        .reverse() // Order: oldest to newest
-        .map((log) => ({
-          role:
-            log.messageType === 'incoming'
-              ? ('user' as const)
-              : ('assistant' as const),
-          content: log.messageBody,
-          timestamp: new Date(log.createdAt),
-        }));
+  if (!result.success || !result.data) {
+    return [];
+  }
 
-      // Populate cache for next time
-      conversationCache.set(chatId, messages);
-    } else {
-      messages = [];
-    }
-
-  return messages;
+  return result.data
+    .reverse() // Order: oldest to newest
+    .map((log) => ({
+      role:
+        log.messageType === 'incoming'
+          ? ('user' as const)
+          : ('assistant' as const),
+      content: log.messageBody,
+      timestamp: new Date(log.createdAt),
+    }));
 }
 
 /**
