@@ -157,6 +157,7 @@ When user confirms:
 }
 \`\`\`
 
+
 ### Food deletion
 - Detect when user want to delete specific food entry. You can detect the intent from the conversation. Use below json
   to delete specific food. For deletes: "delete_calories" with entryIds array (supports multiple) or single entryId. User might 
