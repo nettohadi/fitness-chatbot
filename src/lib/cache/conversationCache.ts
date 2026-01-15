@@ -43,12 +43,10 @@ export function addMessageToCache(
 export async function getConversationContext(
   chatId: string
 ): Promise<CachedMessage[]> {
-  // Try cache first
-  let messages = conversationCache.get(chatId);
+  let messages:CachedMessage[]  = []
+;
 
-  if (!messages) {
-    // Cache miss - fetch from database
-    const { getConversationHistory } = await import('@/lib/db/conversations');
+  const { getConversationHistory } = await import('@/lib/db/conversations');
     const result = await getConversationHistory(chatId, 10);
 
     if (result.success && result.data) {
@@ -68,7 +66,6 @@ export async function getConversationContext(
     } else {
       messages = [];
     }
-  }
 
   return messages;
 }

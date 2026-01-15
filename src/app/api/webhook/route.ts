@@ -22,7 +22,6 @@ import {
 import { logConversation } from '@/lib/db/conversations';
 import {
   getConversationContext,
-  addMessageToCache,
 } from '@/lib/cache/conversationCache';
 import { getCachedTodayData, invalidateTodayCache } from '@/lib/cache/todayDataCache';
 import { processWithContext } from '@/lib/services/contextAwareProcessor';
@@ -120,9 +119,6 @@ export async function POST(request: NextRequest) {
     // Log incoming message
     await logConversation(userIdentifier, 'incoming', messageText);
 
-    // Add to conversation cache
-    addMessageToCache(userIdentifier, 'user', messageText);
-
     // Get conversation history from cache
     const conversationHistory = await getConversationContext(userIdentifier);
 
@@ -156,7 +152,6 @@ export async function POST(request: NextRequest) {
         await Promise.all([
           sendTelegramMessage(chatId, responseText, 'Markdown'),
           logConversation(userIdentifier, 'outgoing', responseText),
-          addMessageToCache(userIdentifier, 'assistant', responseText)
         ]);
 
         return NextResponse.json({ success: true });
@@ -189,7 +184,6 @@ export async function POST(request: NextRequest) {
         await Promise.all([
           sendTelegramMessage(chatId, responseText, 'Markdown'),
           logConversation(userIdentifier, 'outgoing', responseText),
-          addMessageToCache(userIdentifier, 'assistant', responseText)
         ]);
       } else {
         // Clean response to ensure no JSON leaks
@@ -198,7 +192,6 @@ export async function POST(request: NextRequest) {
         await Promise.all([
           sendTelegramMessage(chatId, cleanedResponse, 'Markdown'),
           logConversation(userIdentifier, 'outgoing', cleanedResponse),
-          addMessageToCache(userIdentifier, 'assistant', cleanedResponse)
         ]);
       }
 
@@ -311,9 +304,6 @@ export async function POST(request: NextRequest) {
 
     // Log outgoing message
     await logConversation(userIdentifier, 'outgoing', responseMessage);
-
-    // Add to conversation cache
-    addMessageToCache(userIdentifier, 'assistant', responseMessage);
 
     // Return success response to Telegram
     return NextResponse.json({ ok: true });
