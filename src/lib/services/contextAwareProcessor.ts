@@ -137,9 +137,9 @@ To update individual fields later, use "update_profile" action.
 
 ### Food Logging
 - Ask for amounts if vague ("I ate rice" → "How much?")
-- Use average of calorie ranges when estimating
 - For multiple foods, estimate each separately
 - If user provides calories, use their value (estimatedByAi: false)
+- If user provides amounts, estimate the calories using average calorie (estimatedByAi: true).
 - If you estimate, set estimatedByAi: true
 - ALWAYS ask for confirmation before saving
 
