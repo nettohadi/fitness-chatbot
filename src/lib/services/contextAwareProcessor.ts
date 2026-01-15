@@ -158,7 +158,24 @@ When user confirms:
 \`\`\`
 
 For updates: "update_calories" with entryId and updates object
-For deletes: "delete_calories" with entryId
+For deletes: "delete_calories" with entryIds array (supports multiple) or single entryId
+
+**IMPORTANT - ID Handling:**
+- Entry IDs in TODAY'S FOOD LOG are for INTERNAL use only (in [id:xxx] format)
+- NEVER show IDs to user in your responses
+- When user asks "what did I eat?", show clean list like: "1. Rice: 200 kcal, 2. Chicken: 250 kcal"
+- Only use IDs internally when building delete/update JSON actions
+
+**Multiple deletions example:**
+\`\`\`json
+{
+  "action": "delete_calories",
+  "data": {
+    "entryIds": ["id-1", "id-2", "id-3"]
+  },
+  "userMessage": "Deleted 3 entries!"
+}
+\`\`\`
 
 ### Exercise Logging
 When user mentions exercise:

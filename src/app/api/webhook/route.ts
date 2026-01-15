@@ -229,27 +229,24 @@ export async function POST(request: NextRequest) {
       let todayExercisesText = '';
 
       // Build food summary text
+      // IDs are included for internal reference (update/delete), but model should NOT show IDs to user
       const summary = todayData.summary;
       if (summary.entries.length > 0) {
-        todaySummaryText = `Total consumed today: ${summary.totalCalories} cal\nEntries with IDs:\n`;
-        summary.entries.forEach((entry: any) => {
+        todaySummaryText = `Total consumed today: ${summary.totalCalories} cal\nEntries (IDs for internal use only - NEVER show IDs to user):\n`;
+        summary.entries.forEach((entry: any, index: number) => {
           const foodName = entry.foodDescription || 'Food item';
           const estimatedTag = entry.estimatedByAi ? ' (estimated)' : '';
-          todaySummaryText += `- ID: ${entry.id}\n`;
-          todaySummaryText += `  Food: ${foodName}\n`;
-          todaySummaryText += `  Calories: ${entry.calories} cal${estimatedTag}\n`;
+          todaySummaryText += `${index + 1}. ${foodName}: ${entry.calories} cal${estimatedTag} [id:${entry.id}]\n`;
         });
       }
 
       // Build exercise summary text
+      // IDs are included for internal reference (update/delete), but model should NOT show IDs to user
       if (todayData.exercises.length > 0) {
-        todayExercisesText = 'Today\'s exercise entries:\n';
-        todayData.exercises.forEach((exercise: any) => {
+        todayExercisesText = 'Today\'s exercise entries (IDs for internal use only - NEVER show IDs to user):\n';
+        todayData.exercises.forEach((exercise: any, index: number) => {
           const caloriesBurned = exercise.caloriesBurned?.toNumber ? exercise.caloriesBurned.toNumber() : exercise.caloriesBurned;
-          todayExercisesText += `- ID: ${exercise.id}\n`;
-          todayExercisesText += `  Type: ${exercise.exerciseType}\n`;
-          todayExercisesText += `  Duration: ${exercise.durationMinutes} minutes\n`;
-          todayExercisesText += `  Calories burned: ${caloriesBurned} cal\n`;
+          todayExercisesText += `${index + 1}. ${exercise.exerciseType}: ${exercise.durationMinutes} min, ${caloriesBurned} cal burned [id:${exercise.id}]\n`;
         });
       }
 
@@ -540,14 +537,24 @@ async function executeAction(
         break;
 
       case 'delete_calories':
-        console.log('🗑️ Deleting calorie entry:', action.data.entryId);
-        const calorieDeleteResult = await deleteCalorieEntry(action.data.entryId);
-        if (calorieDeleteResult.success) {
-          console.log('✅ Calorie entry deleted successfully');
+        // Support single entryId or array of entryIds
+        const entryIds = action.data.entryIds || (action.data.entryId ? [action.data.entryId] : []);
+        console.log('🗑️ Deleting calorie entries:', entryIds);
+
+        let deleteSuccessCount = 0;
+        for (const entryId of entryIds) {
+          const calorieDeleteResult = await deleteCalorieEntry(entryId);
+          if (calorieDeleteResult.success) {
+            deleteSuccessCount++;
+          } else {
+            console.error('❌ Failed to delete calorie entry:', entryId, calorieDeleteResult.error);
+          }
+        }
+
+        if (deleteSuccessCount > 0) {
+          console.log(`✅ Deleted ${deleteSuccessCount}/${entryIds.length} calorie entries successfully`);
           // Invalidate cache after delete
           invalidateTodayCache(userId);
-        } else {
-          console.error('❌ Failed to delete calorie entry:', calorieDeleteResult.error);
         }
         break;
 
