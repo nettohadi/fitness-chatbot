@@ -1,13 +1,16 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 import type { CachedMessage } from '@/lib/cache/conversationCache';
 import type { User } from '@/types';
 import { logClaudeApiCall } from '@/lib/utils/apiLogger';
 
-// Initialize Google Generative AI
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY || '');
+// Use OpenRouter for Gemini
+const openrouter = new OpenAI({
+  baseURL: 'https://openrouter.ai/api/v1',
+  apiKey: process.env.OPENROUTER_API_KEY,
+});
 
-// Model configuration - Gemini 2.0 Flash is the cheapest
-const MODEL_ID = 'gemini-2.0-flash';
+// Model configuration - Gemini 2.0 Flash via OpenRouter
+const MODEL_ID = 'google/gemini-2.0-flash-001';
 
 // Pricing per 1M tokens (for cost calculation)
 // Gemini 2.0 Flash: $0.10 input, $0.40 output per 1M tokens
@@ -17,7 +20,7 @@ const PRICING = {
 };
 
 /**
- * Process user message with conversation context using Gemini AI
+ * Process user message with conversation context using Gemini AI via OpenRouter
  *
  * This is the core function that makes the bot context-aware and multilingual.
  * Gemini automatically:
@@ -36,37 +39,32 @@ export async function processWithContext(
 ): Promise<string> {
   const systemPrompt = buildSystemPrompt(user, todaySummary, todayExercises);
 
-  // Get the Gemini model with system instruction
-  const model = genAI.getGenerativeModel({
-    model: MODEL_ID,
-    systemInstruction: systemPrompt,
-  });
-
-  // Convert conversation history to Gemini format
-  const history = conversationHistory.map((m) => ({
-    role: m.role === 'user' ? 'user' : 'model' as const,
-    parts: [{ text: m.content }],
-  }));
+  // Convert conversation history to OpenAI message format
+  const messages: OpenAI.ChatCompletionMessageParam[] = [
+    { role: 'system', content: systemPrompt },
+    ...conversationHistory.map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    })),
+    {
+      role: 'user' as const,
+      content: userMessage,
+    },
+  ];
 
   try {
     const startTime = Date.now();
 
-    // Start a chat session with history
-    const chat = model.startChat({
-      history,
-      generationConfig: {
-        maxOutputTokens: 1024,
-      },
+    const response = await openrouter.chat.completions.create({
+      model: MODEL_ID,
+      max_tokens: 1024,
+      messages: messages,
     });
-
-    // Send the current message
-    const result = await chat.sendMessage(userMessage);
-    const response = result.response;
 
     const latencyMs = Date.now() - startTime;
 
     // Extract text from response
-    let responseText = response.text() || '';
+    let responseText = response.choices[0]?.message?.content || '';
 
     if (!responseText) {
       responseText = 'Sorry, I could not process that.';
@@ -74,22 +72,16 @@ export async function processWithContext(
 
     console.log({ response: responseText.substring(0, 200) });
 
-    // Get token usage from response metadata
-    const usageMetadata = response.usageMetadata;
-    const inputTokens = usageMetadata?.promptTokenCount || 0;
-    const outputTokens = usageMetadata?.candidatesTokenCount || 0;
+    // Calculate tokens and cost
+    const inputTokens = response.usage?.prompt_tokens || 0;
+    const outputTokens = response.usage?.completion_tokens || 0;
     const totalCost = (inputTokens * PRICING.input + outputTokens * PRICING.output) / 1_000_000;
 
     // Log API call to database (async, non-blocking)
-    const logMessages = conversationHistory.map((m) => ({
-      role: m.role,
-      content: m.content,
-    }));
-    logMessages.push({ role: 'user', content: userMessage });
-
+    const logMessages = messages.slice(1); // Remove system message
     logClaudeApiCall({
       userId: user.id,
-      model: MODEL_ID,
+      model: response.model || MODEL_ID,
       systemPrompt,
       messages: logMessages,
       response: responseText,
@@ -101,7 +93,7 @@ export async function processWithContext(
 
     return responseText;
   } catch (error) {
-    console.error('Error calling Gemini API:', error);
+    console.error('Error calling Gemini API via OpenRouter:', error);
     throw error;
   }
 }
@@ -292,10 +284,18 @@ Confidence: [high/medium/low]
 Reasoning: [brief explanation]`;
 
   try {
-    const model = genAI.getGenerativeModel({ model: MODEL_ID });
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const response = await openrouter.chat.completions.create({
+      model: MODEL_ID,
+      max_tokens: 256,
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+    });
 
+    const text = response.choices[0]?.message?.content;
     if (!text) {
       throw new Error('No text response from AI');
     }
