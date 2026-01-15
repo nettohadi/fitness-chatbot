@@ -157,16 +157,11 @@ When user confirms:
 }
 \`\`\`
 
-For updates: "update_calories" with entryId and updates object
-For deletes: "delete_calories" with entryIds array (supports multiple) or single entryId
+### Food deletion
+- Detect when user want to delete specific food entry. You can detect the intent for the conversation. Use below json
+  to delete specific food. For deletes: "delete_calories" with entryIds array (supports multiple) or single entryId
 
-**IMPORTANT - ID Handling:**
-- Entry IDs in TODAY'S FOOD LOG are for INTERNAL use only (in [id:xxx] format)
-- NEVER show IDs to user in your responses
-- When user asks "what did I eat?", show clean list like: "1. Rice: 200 kcal, 2. Chicken: 250 kcal"
-- Only use IDs internally when building delete/update JSON actions
-
-**Multiple deletions example:**
+  **Multiple deletions example:**
 \`\`\`json
 {
   "action": "delete_calories",
@@ -176,6 +171,14 @@ For deletes: "delete_calories" with entryIds array (supports multiple) or single
   "userMessage": "Deleted 3 entries!"
 }
 \`\`\`
+
+For updates: "update_calories" with entryId and updates object
+
+**IMPORTANT - ID Handling:**
+- Entry IDs in TODAY'S FOOD LOG are for INTERNAL use only (in [id:xxx] format)
+- NEVER show IDs to user in your responses
+- When user asks "what did I eat?", show clean list like: "1. Rice: 200 kcal, 2. Chicken: 250 kcal"
+- Only use IDs internally when building delete/update JSON actions
 
 ### Exercise Logging
 When user mentions exercise:
