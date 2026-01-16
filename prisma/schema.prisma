@@ -71,6 +71,7 @@ model User {
   tdee              Decimal?        @db.Decimal(6, 2)
   weightKg          Decimal?        @map("weight_kg") @db.Decimal(5, 2)
   deficitTarget     Decimal?        @map("deficit_target") @db.Decimal(6, 2)
+  timezone          String?         @db.VarChar(50)
   calorieEntries    CalorieEntry[]
   exerciseEntries   ExerciseEntry[]
   claudeApiLogs     ClaudeApiLog[]

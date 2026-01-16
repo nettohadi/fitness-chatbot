@@ -12,7 +12,7 @@ export default function StatsCard({
   icon,
 }: StatsCardProps) {
   return (
-    <div className="bg-white overflow-hidden shadow rounded-lg">
+    <div className="bg-card overflow-hidden shadow rounded-lg border border-border">
       <div className="p-5">
         <div className="flex items-center">
           <div className="flex-shrink-0">
@@ -20,15 +20,15 @@ export default function StatsCard({
           </div>
           <div className="ml-5 w-0 flex-1">
             <dl>
-              <dt className="text-sm font-medium text-gray-500 truncate">
+              <dt className="text-sm font-medium text-muted-foreground truncate">
                 {title}
               </dt>
               <dd className="flex items-baseline">
-                <div className="text-2xl font-semibold text-gray-900">
+                <div className="text-2xl font-semibold text-foreground">
                   {value}
                 </div>
               </dd>
-              <dd className="text-sm text-gray-500 mt-1">{description}</dd>
+              <dd className="text-sm text-muted-foreground mt-1">{description}</dd>
             </dl>
           </div>
         </div>

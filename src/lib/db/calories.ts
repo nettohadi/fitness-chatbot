@@ -228,11 +228,11 @@ export async function getWeeklySummary(
 
 /**
  * Get today's date in YYYY-MM-DD format
- * Uses configured timezone (defaults to Asia/Jakarta for Indonesian users)
- * @returns Today's date string
+ * @param userTimezone - Optional user timezone (e.g., "Asia/Jakarta", "America/New_York")
+ * @returns Today's date string in the specified timezone
  */
-export function getTodayDate(): string {
-  const timezone = process.env.APP_TIMEZONE || 'Asia/Jakarta';
+export function getTodayDate(userTimezone?: string | null): string {
+  const timezone = userTimezone || process.env.APP_TIMEZONE || 'Asia/Jakarta';
   const now = new Date();
 
   // Format date in the specified timezone
@@ -250,11 +250,11 @@ export function getTodayDate(): string {
 
 /**
  * Get yesterday's date in YYYY-MM-DD format
- * Uses configured timezone (defaults to Asia/Jakarta for Indonesian users)
- * @returns Yesterday's date string
+ * @param userTimezone - Optional user timezone
+ * @returns Yesterday's date string in the specified timezone
  */
-export function getYesterdayDate(): string {
-  const timezone = process.env.APP_TIMEZONE || 'Asia/Jakarta';
+export function getYesterdayDate(userTimezone?: string | null): string {
+  const timezone = userTimezone || process.env.APP_TIMEZONE || 'Asia/Jakarta';
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
 
@@ -271,26 +271,49 @@ export function getYesterdayDate(): string {
 /**
  * Get a date N days ago in YYYY-MM-DD format
  * @param daysAgo - Number of days ago
+ * @param userTimezone - Optional user timezone
  * @returns Date string
  */
-export function getDateDaysAgo(daysAgo: number): string {
+export function getDateDaysAgo(daysAgo: number, userTimezone?: string | null): string {
+  const timezone = userTimezone || process.env.APP_TIMEZONE || 'Asia/Jakarta';
   const date = new Date();
   date.setDate(date.getDate() - daysAgo);
-  return date.toISOString().split('T')[0];
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  return formatter.format(date);
 }
 
 /**
  * Get the date range for the current week (Monday to Sunday)
+ * @param userTimezone - Optional user timezone
  * @returns Object with startDate and endDate in YYYY-MM-DD format
  */
-export function getCurrentWeekRange(): { startDate: string; endDate: string } {
+export function getCurrentWeekRange(userTimezone?: string | null): { startDate: string; endDate: string } {
+  const timezone = userTimezone || process.env.APP_TIMEZONE || 'Asia/Jakarta';
   const now = new Date();
-  const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, etc.
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  // Get today in user's timezone
+  const todayStr = formatter.format(now);
+  const today = new Date(todayStr + 'T12:00:00');
+  const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
 
   // Calculate Monday of current week
-  const monday = new Date(now);
-  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // If Sunday, go back 6 days
-  monday.setDate(now.getDate() + diff);
+  const monday = new Date(today);
+  const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  monday.setDate(today.getDate() + diff);
 
   // Calculate Sunday of current week
   const sunday = new Date(monday);
@@ -304,16 +327,29 @@ export function getCurrentWeekRange(): { startDate: string; endDate: string } {
 
 /**
  * Get the date range for the current month
+ * @param userTimezone - Optional user timezone
  * @returns Object with startDate and endDate in YYYY-MM-DD format
  */
-export function getCurrentMonthRange(): { startDate: string; endDate: string } {
+export function getCurrentMonthRange(userTimezone?: string | null): { startDate: string; endDate: string } {
+  const timezone = userTimezone || process.env.APP_TIMEZONE || 'Asia/Jakarta';
   const now = new Date();
 
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  // Get today in user's timezone
+  const todayStr = formatter.format(now);
+  const today = new Date(todayStr + 'T12:00:00');
+
   // First day of current month
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
 
   // Last day of current month
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
 
   return {
     startDate: firstDay.toISOString().split('T')[0],
@@ -324,16 +360,29 @@ export function getCurrentMonthRange(): { startDate: string; endDate: string } {
 /**
  * Get the date range for the last N days
  * @param days - Number of days to look back (default: 7)
+ * @param userTimezone - Optional user timezone
  * @returns Object with startDate and endDate in YYYY-MM-DD format
  */
-export function getLastNDaysRange(days: number = 7): { startDate: string; endDate: string } {
+export function getLastNDaysRange(days: number = 7, userTimezone?: string | null): { startDate: string; endDate: string } {
+  const timezone = userTimezone || process.env.APP_TIMEZONE || 'Asia/Jakarta';
   const now = new Date();
-  const startDate = new Date(now);
-  startDate.setDate(now.getDate() - (days - 1));
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  const endDate = formatter.format(now);
+
+  const startDateObj = new Date(now);
+  startDateObj.setDate(now.getDate() - (days - 1));
+  const startDate = formatter.format(startDateObj);
 
   return {
-    startDate: startDate.toISOString().split('T')[0],
-    endDate: now.toISOString().split('T')[0],
+    startDate,
+    endDate,
   };
 }
 

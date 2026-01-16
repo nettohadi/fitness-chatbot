@@ -1,301 +1,191 @@
-import { prisma } from "@/lib/prisma"
+"use client"
 
-async function getAnalytics() {
-  const thirtyDaysAgo = new Date()
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+import { useAnalytics } from "@/lib/hooks/useAdminData"
+import { CardSkeleton } from "@/components/ui/LoadingSpinner"
 
-  const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-
-  // User growth stats
-  const [totalUsers, last30DaysUsers, last7DaysUsers, completedProfiles] =
-    await Promise.all([
-      prisma.user.count(),
-      prisma.user.count({
-        where: { createdAt: { gte: thirtyDaysAgo } },
-      }),
-      prisma.user.count({
-        where: { createdAt: { gte: sevenDaysAgo } },
-      }),
-      prisma.user.count({
-        where: { profileCompleted: true },
-      }),
-    ])
-
-  // Entry stats
-  const [totalCalorieEntries, totalExerciseEntries, entriesLast7Days] =
-    await Promise.all([
-      prisma.calorieEntry.count(),
-      prisma.exerciseEntry.count(),
-      Promise.all([
-        prisma.calorieEntry.count({
-          where: { createdAt: { gte: sevenDaysAgo } },
-        }),
-        prisma.exerciseEntry.count({
-          where: { createdAt: { gte: sevenDaysAgo } },
-        }),
-      ]),
-    ])
-
-  // API usage stats
-  const apiStats = await prisma.claudeApiLog.aggregate({
-    _sum: {
-      inputTokens: true,
-      outputTokens: true,
-      totalCost: true,
-    },
-    _avg: {
-      latencyMs: true,
-    },
-  })
-
-  // Top exercis types
-  const topExercises = await prisma.exerciseEntry.groupBy({
-    by: ["exerciseType"],
-    _count: {
-      exerciseType: true,
-    },
-    orderBy: {
-      _count: {
-        exerciseType: "desc",
-      },
-    },
-    take: 5,
-  })
-
-  // User activity distribution
-  const activeUsers = await prisma.user.count({
-    where: {
-      OR: [
-        {
-          calorieEntries: {
-            some: {
-              createdAt: { gte: sevenDaysAgo },
-            },
-          },
-        },
-        {
-          exerciseEntries: {
-            some: {
-              createdAt: { gte: sevenDaysAgo },
-            },
-          },
-        },
-      ],
-    },
-  })
-
-  return {
-    users: {
-      total: totalUsers,
-      last30Days: last30DaysUsers,
-      last7Days: last7DaysUsers,
-      completedProfiles,
-      profileCompletionRate: totalUsers > 0 ? (completedProfiles / totalUsers) * 100 : 0,
-    },
-    entries: {
-      totalCalorie: totalCalorieEntries,
-      totalExercise: totalExerciseEntries,
-      last7DaysCalorie: entriesLast7Days[0],
-      last7DaysExercise: entriesLast7Days[1],
-    },
-    api: {
-      totalCost: apiStats._sum.totalCost?.toNumber() || 0,
-      totalInputTokens: apiStats._sum.inputTokens || 0,
-      totalOutputTokens: apiStats._sum.outputTokens || 0,
-      avgLatency: apiStats._avg.latencyMs || 0,
-    },
-    topExercises,
-    activity: {
-      activeUsers,
-      activeRate: totalUsers > 0 ? (activeUsers / totalUsers) * 100 : 0,
-    },
-  }
+function StatCard({
+  title,
+  value,
+  subtitle,
+}: {
+  title: string
+  value: string | number
+  subtitle: string
+}) {
+  return (
+    <div className="bg-card overflow-hidden shadow rounded-lg border border-border">
+      <div className="p-5">
+        <div className="text-sm font-medium text-muted-foreground">{title}</div>
+        <div className="mt-1 text-3xl font-semibold text-foreground">{value}</div>
+        <div className="mt-2 text-sm text-muted-foreground">{subtitle}</div>
+      </div>
+    </div>
+  )
 }
 
-export default async function AnalyticsPage() {
-  const analytics = await getAnalytics()
+export default function AnalyticsPage() {
+  const { data: analytics, isLoading, error } = useAnalytics()
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-destructive">Failed to load analytics</p>
+        <p className="text-sm text-muted-foreground mt-2">
+          {error instanceof Error ? error.message : "Unknown error"}
+        </p>
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-8">
+        <h1 className="text-2xl font-semibold text-foreground">Analytics</h1>
+
+        {/* User Analytics Skeleton */}
+        <div>
+          <h2 className="text-lg font-medium text-foreground mb-4">
+            User Analytics
+          </h2>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+          </div>
+        </div>
+
+        {/* Entry Analytics Skeleton */}
+        <div>
+          <h2 className="text-lg font-medium text-foreground mb-4">
+            Entry Analytics
+          </h2>
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+            <CardSkeleton />
+            <CardSkeleton />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!analytics) return null
 
   return (
-    <div className="px-4 py-6 sm:px-0">
-      <h1 className="text-2xl font-semibold text-gray-900 mb-6">Analytics</h1>
+    <div className="space-y-8 pt-8">
+      <h1 className="text-2xl font-semibold text-foreground">Analytics</h1>
 
       {/* User Analytics */}
-      <div className="mb-8">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
+      <div>
+        <h2 className="text-lg font-medium text-foreground mb-4">
           User Analytics
         </h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="text-sm font-medium text-gray-500">
-                Total Users
-              </div>
-              <div className="mt-1 text-3xl font-semibold text-gray-900">
-                {analytics.users.total}
-              </div>
-              <div className="mt-2 text-sm text-gray-500">
-                +{analytics.users.last7Days} this week
-              </div>
-            </div>
-          </div>
+          <StatCard
+            title="Total Users"
+            value={analytics.users.total}
+            subtitle={`+${analytics.users.last7Days} this week`}
+          />
 
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="text-sm font-medium text-gray-500">
-                New Users (30d)
-              </div>
-              <div className="mt-1 text-3xl font-semibold text-gray-900">
-                {analytics.users.last30Days}
-              </div>
-              <div className="mt-2 text-sm text-gray-500">
-                {((analytics.users.last30Days / analytics.users.total) * 100).toFixed(1)}% of total
-              </div>
-            </div>
-          </div>
+          <StatCard
+            title="New Users (30d)"
+            value={analytics.users.last30Days}
+            subtitle={`${analytics.users.total > 0 ? ((analytics.users.last30Days / analytics.users.total) * 100).toFixed(1) : 0}% of total`}
+          />
 
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="text-sm font-medium text-gray-500">
-                Profile Completion
-              </div>
-              <div className="mt-1 text-3xl font-semibold text-gray-900">
-                {analytics.users.profileCompletionRate.toFixed(0)}%
-              </div>
-              <div className="mt-2 text-sm text-gray-500">
-                {analytics.users.completedProfiles} completed
-              </div>
-            </div>
-          </div>
+          <StatCard
+            title="Profile Completion"
+            value={`${analytics.users.profileCompletionRate.toFixed(0)}%`}
+            subtitle={`${analytics.users.completedProfiles} completed`}
+          />
 
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="text-sm font-medium text-gray-500">
-                Active Users (7d)
-              </div>
-              <div className="mt-1 text-3xl font-semibold text-gray-900">
-                {analytics.activity.activeUsers}
-              </div>
-              <div className="mt-2 text-sm text-gray-500">
-                {analytics.activity.activeRate.toFixed(0)}% active rate
-              </div>
-            </div>
-          </div>
+          <StatCard
+            title="Active Users (7d)"
+            value={analytics.activity.activeUsers}
+            subtitle={`${analytics.activity.activeRate.toFixed(0)}% active rate`}
+          />
         </div>
       </div>
 
       {/* Entry Analytics */}
-      <div className="mb-8">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
+      <div>
+        <h2 className="text-lg font-medium text-foreground mb-4">
           Entry Analytics
         </h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="text-sm font-medium text-gray-500">
-                Food Entries
-              </div>
-              <div className="mt-1 text-3xl font-semibold text-gray-900">
-                {analytics.entries.totalCalorie}
-              </div>
-              <div className="mt-2 text-sm text-gray-500">
-                {analytics.entries.last7DaysCalorie} in last 7 days
-              </div>
-            </div>
-          </div>
+          <StatCard
+            title="Food Entries"
+            value={analytics.entries.totalCalorie}
+            subtitle={`${analytics.entries.last7DaysCalorie} in last 7 days`}
+          />
 
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="text-sm font-medium text-gray-500">
-                Exercise Entries
-              </div>
-              <div className="mt-1 text-3xl font-semibold text-gray-900">
-                {analytics.entries.totalExercise}
-              </div>
-              <div className="mt-2 text-sm text-gray-500">
-                {analytics.entries.last7DaysExercise} in last 7 days
-              </div>
-            </div>
-          </div>
+          <StatCard
+            title="Exercise Entries"
+            value={analytics.entries.totalExercise}
+            subtitle={`${analytics.entries.last7DaysExercise} in last 7 days`}
+          />
         </div>
       </div>
 
       {/* API Analytics */}
-      <div className="mb-8">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
+      <div>
+        <h2 className="text-lg font-medium text-foreground mb-4">
           API Usage Analytics
         </h2>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="text-sm font-medium text-gray-500">
-                Total Cost
-              </div>
-              <div className="mt-1 text-3xl font-semibold text-gray-900">
-                ${analytics.api.totalCost.toFixed(2)}
-              </div>
-              <div className="mt-2 text-sm text-gray-500">
-                All time API costs
-              </div>
-            </div>
-          </div>
+          <StatCard
+            title="Total Cost"
+            value={`$${analytics.api.totalCost.toFixed(2)}`}
+            subtitle="All time API costs"
+          />
 
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="text-sm font-medium text-gray-500">
-                Total Tokens
-              </div>
-              <div className="mt-1 text-3xl font-semibold text-gray-900">
-                {(analytics.api.totalInputTokens + analytics.api.totalOutputTokens).toLocaleString()}
-              </div>
-              <div className="mt-2 text-sm text-gray-500">
-                {analytics.api.totalInputTokens.toLocaleString()} in / {analytics.api.totalOutputTokens.toLocaleString()} out
-              </div>
-            </div>
-          </div>
+          <StatCard
+            title="Total Tokens"
+            value={(
+              analytics.api.totalInputTokens + analytics.api.totalOutputTokens
+            ).toLocaleString()}
+            subtitle={`${analytics.api.totalInputTokens.toLocaleString()} in / ${analytics.api.totalOutputTokens.toLocaleString()} out`}
+          />
 
-          <div className="bg-white overflow-hidden shadow rounded-lg">
-            <div className="p-5">
-              <div className="text-sm font-medium text-gray-500">
-                Avg Latency
-              </div>
-              <div className="mt-1 text-3xl font-semibold text-gray-900">
-                {analytics.api.avgLatency.toFixed(0)}ms
-              </div>
-              <div className="mt-2 text-sm text-gray-500">
-                Response time
-              </div>
-            </div>
-          </div>
+          <StatCard
+            title="Avg Latency"
+            value={`${analytics.api.avgLatency.toFixed(0)}ms`}
+            subtitle="Response time"
+          />
         </div>
       </div>
 
       {/* Top Exercises */}
       <div>
-        <h2 className="text-lg font-medium text-gray-900 mb-4">
+        <h2 className="text-lg font-medium text-foreground mb-4">
           Top Exercises
         </h2>
-        <div className="bg-white shadow rounded-lg">
-          <ul className="divide-y divide-gray-200">
+        <div className="bg-card shadow rounded-lg border border-border">
+          <ul className="divide-y divide-border">
             {analytics.topExercises.map((exercise, index) => (
               <li key={exercise.exerciseType} className="px-6 py-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <div className="text-2xl font-bold text-gray-400 w-8">
+                    <div className="text-2xl font-bold text-muted-foreground w-8">
                       {index + 1}
                     </div>
                     <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900 capitalize">
+                      <div className="text-sm font-medium text-foreground capitalize">
                         {exercise.exerciseType}
                       </div>
                     </div>
                   </div>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-muted-foreground">
                     {exercise._count.exerciseType} times
                   </div>
                 </div>
               </li>
             ))}
+            {analytics.topExercises.length === 0 && (
+              <li className="px-6 py-8 text-center text-muted-foreground">
+                No exercise data yet
+              </li>
+            )}
           </ul>
         </div>
       </div>

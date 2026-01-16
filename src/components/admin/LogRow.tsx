@@ -1,7 +1,5 @@
 "use client"
 
-import { useRouter } from "next/navigation"
-
 interface LogRowProps {
   log: {
     id: string
@@ -17,52 +15,51 @@ interface LogRowProps {
       nickname: string | null
     } | null
   }
+  onClick?: (logId: string) => void
 }
 
-export default function LogRow({ log }: LogRowProps) {
-  const router = useRouter()
-
+export default function LogRow({ log, onClick }: LogRowProps) {
   return (
     <tr
       key={log.id}
-      className="hover:bg-gray-50 cursor-pointer"
-      onClick={() => router.push(`/admin/dashboard/logs/${log.id}`)}
+      className="hover:bg-secondary/50 cursor-pointer transition-colors"
+      onClick={() => onClick?.(log.id)}
     >
       <td className="whitespace-nowrap py-4 pl-4 pr-3 text-sm sm:pl-6">
-        <div className="text-gray-900">
+        <div className="text-foreground">
           {new Date(log.createdAt).toLocaleTimeString()}
         </div>
-        <div className="text-gray-500 text-xs">
+        <div className="text-muted-foreground text-xs">
           {new Date(log.createdAt).toLocaleDateString()}
         </div>
       </td>
       <td className="whitespace-nowrap px-3 py-4 text-sm">
         {log.user ? (
           <>
-            <div className="text-gray-900">
+            <div className="text-foreground">
               {log.user.fullName || log.user.nickname || "No name"}
             </div>
-            <div className="text-gray-500 text-xs">{log.user.phoneNumber}</div>
+            <div className="text-muted-foreground text-xs">{log.user.phoneNumber}</div>
           </>
         ) : (
-          <span className="text-gray-400">System</span>
+          <span className="text-muted-foreground">System</span>
         )}
       </td>
-      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+      <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">
         {log.model}
       </td>
       <td className="whitespace-nowrap px-3 py-4 text-sm">
-        <div className="text-gray-900">
+        <div className="text-foreground">
           {log.inputTokens + log.outputTokens} total
         </div>
-        <div className="text-gray-500 text-xs">
+        <div className="text-muted-foreground text-xs">
           {log.inputTokens} in / {log.outputTokens} out
         </div>
       </td>
-      <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-gray-900">
+      <td className="whitespace-nowrap px-3 py-4 text-sm font-medium text-foreground">
         ${log.totalCost.toFixed(6)}
       </td>
-      <td className="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+      <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">
         {log.latencyMs}ms
       </td>
     </tr>

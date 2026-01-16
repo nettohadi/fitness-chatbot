@@ -1,37 +1,40 @@
-import { prisma } from "@/lib/prisma"
-import { notFound } from "next/navigation"
+"use client"
+
+import { useLog } from "@/lib/hooks/useAdminData"
+import { PageLoader } from "@/components/ui/LoadingSpinner"
 import Link from "next/link"
+import { use } from "react"
 
-async function getLogDetail(id: string) {
-  const log = await prisma.claudeApiLog.findUnique({
-    where: { id },
-    include: {
-      user: {
-        select: {
-          phoneNumber: true,
-          fullName: true,
-          nickname: true,
-        },
-      },
-    },
-  })
-
-  return log
-}
-
-export default async function LogDetailPage({
+export default function LogDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
-  const { id } = await params
-  const log = await getLogDetail(id)
+  const { id } = use(params)
+  const { data: log, isLoading, error } = useLog(id)
 
-  if (!log) {
-    notFound()
+  if (isLoading) {
+    return <PageLoader text="Loading log details..." />
   }
 
-  const messages = log.messages as any[]
+  if (error || !log) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-destructive">Failed to load log details</p>
+        <p className="text-sm text-muted-foreground mt-2">
+          {error instanceof Error ? error.message : "Log not found"}
+        </p>
+        <Link
+          href="/admin/dashboard/logs"
+          className="text-primary hover:text-primary/80 text-sm mt-4 inline-block"
+        >
+          ← Back to logs
+        </Link>
+      </div>
+    )
+  }
+
+  const messages = (log.messages || []) as any[]
 
   // Build complete prompt as sent to Claude
   const completePrompt = `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -44,74 +47,74 @@ ${log.systemPrompt}
 CONVERSATION HISTORY
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-${messages.map((msg: any, idx: number) =>
+${messages.map((msg: any) =>
   `[${msg.role.toUpperCase()}]:\n${msg.content}`
 ).join('\n\n---\n\n')}`
 
   return (
-    <div className="px-4 py-6 sm:px-0">
-      <div className="mb-6">
+    <div className="space-y-6">
+      <div>
         <Link
           href="/admin/dashboard/logs"
-          className="text-indigo-600 hover:text-indigo-900 text-sm"
+          className="text-primary hover:text-primary/80 text-sm"
         >
           ← Back to logs
         </Link>
       </div>
 
-      <h1 className="text-2xl font-semibold text-gray-900 mb-6">
+      <h1 className="text-2xl font-semibold text-foreground">
         API Log Details
       </h1>
 
       {/* Metadata */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
+      <div className="bg-card shadow overflow-hidden rounded-lg border border-border">
         <div className="px-4 py-5 sm:px-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
+          <h3 className="text-lg leading-6 font-medium text-foreground">
             Request Information
           </h3>
         </div>
-        <div className="border-t border-gray-200">
+        <div className="border-t border-border">
           <dl>
-            <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Time</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+            <div className="bg-secondary/30 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt className="text-sm font-medium text-muted-foreground">Time</dt>
+              <dd className="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">
                 {new Date(log.createdAt).toLocaleString()}
               </dd>
             </div>
-            <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">User</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+            <div className="bg-card px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt className="text-sm font-medium text-muted-foreground">User</dt>
+              <dd className="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">
                 {log.user ? (
                   <div>
                     <div>{log.user.fullName || log.user.nickname || "No name"}</div>
-                    <div className="text-gray-500">{log.user.phoneNumber}</div>
+                    <div className="text-muted-foreground">{log.user.phoneNumber}</div>
                   </div>
                 ) : (
                   "System"
                 )}
               </dd>
             </div>
-            <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Model</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+            <div className="bg-secondary/30 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt className="text-sm font-medium text-muted-foreground">Model</dt>
+              <dd className="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">
                 {log.model}
               </dd>
             </div>
-            <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Tokens</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+            <div className="bg-card px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt className="text-sm font-medium text-muted-foreground">Tokens</dt>
+              <dd className="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">
                 {log.inputTokens + log.outputTokens} total ({log.inputTokens} in / {log.outputTokens} out)
               </dd>
             </div>
-            <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Cost</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                ${log.totalCost.toNumber().toFixed(6)}
+            <div className="bg-secondary/30 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt className="text-sm font-medium text-muted-foreground">Cost</dt>
+              <dd className="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">
+                ${log.totalCost.toFixed(6)}
               </dd>
             </div>
-            <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Latency</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+            <div className="bg-card px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+              <dt className="text-sm font-medium text-muted-foreground">Latency</dt>
+              <dd className="mt-1 text-sm text-foreground sm:mt-0 sm:col-span-2">
                 {log.latencyMs}ms
               </dd>
             </div>
@@ -120,31 +123,31 @@ ${messages.map((msg: any, idx: number) =>
       </div>
 
       {/* Complete Prompt Sent to Claude */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
-        <div className="px-4 py-5 sm:px-6 bg-indigo-50 flex justify-between items-center">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
+      <div className="bg-card shadow overflow-hidden rounded-lg border border-border">
+        <div className="px-4 py-5 sm:px-6 bg-primary/10 flex justify-between items-center">
+          <h3 className="text-lg leading-6 font-medium text-foreground">
             Complete Prompt Sent to Claude
           </h3>
-          <span className="text-xs text-gray-500">
+          <span className="text-xs text-muted-foreground">
             Includes system prompt + conversation history + user message
           </span>
         </div>
         <div className="px-4 py-5 sm:px-6">
-          <pre className="whitespace-pre-wrap text-xs text-gray-700 bg-gray-50 p-4 rounded overflow-x-auto max-h-[600px] overflow-y-auto font-mono border border-gray-200">
+          <pre className="whitespace-pre-wrap text-xs text-foreground bg-secondary/50 p-4 rounded overflow-x-auto max-h-[600px] overflow-y-auto font-mono border border-border">
             {completePrompt}
           </pre>
         </div>
       </div>
 
       {/* Response */}
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-        <div className="px-4 py-5 sm:px-6 bg-green-50">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
+      <div className="bg-card shadow overflow-hidden rounded-lg border border-border">
+        <div className="px-4 py-5 sm:px-6 bg-green-500/10">
+          <h3 className="text-lg leading-6 font-medium text-foreground">
             Claude Response
           </h3>
         </div>
         <div className="px-4 py-5 sm:px-6">
-          <pre className="whitespace-pre-wrap text-sm text-gray-900 bg-gray-50 p-4 rounded font-mono border border-gray-200">
+          <pre className="whitespace-pre-wrap text-sm text-foreground bg-secondary/50 p-4 rounded font-mono border border-border">
             {log.response}
           </pre>
         </div>
