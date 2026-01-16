@@ -44,7 +44,6 @@ import {
   processExerciseLogging,
   processExerciseUpdate,
   processSummary,
-  extractSummaryPeriod,
   processProfileSetup,
   processProfileUpdate,
   toPromptUser,
@@ -198,9 +197,8 @@ async function handleMessageWithIntentRouting(
 
     // OTHER
     case 'summary': {
-      // Extract the period from user message using LLM
-      const periodResult = await extractSummaryPeriod(messageText, user.id);
-      const period = periodResult.period;
+      // Period is already extracted by intent detector
+      const period = intentResult.period || 'today';
 
       // For 'today', use cached data for speed
       if (period === 'today') {
@@ -254,9 +252,9 @@ async function handleMessageWithIntentRouting(
           endDate = monthRange.endDate;
           break;
         case 'specific':
-          // Parse the specific date from LLM response
-          if (periodResult.date) {
-            const parsedDate = parseSpecificDate(periodResult.date);
+          // Parse the specific date from intent result
+          if (intentResult.date) {
+            const parsedDate = parseSpecificDate(intentResult.date);
             if (parsedDate) {
               startDate = endDate = parsedDate;
             } else {
