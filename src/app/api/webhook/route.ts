@@ -32,6 +32,187 @@ import {
 import { calculateFitnessMetrics } from '@/lib/services/bmrCalculator';
 import { findExerciseType } from '@/lib/services/exerciseTracker';
 import { generateErrorMessage } from '@/lib/services/responseGenerator';
+// Intent-based routing (new architecture)
+import {
+  detectIntent,
+  processFoodEstimate,
+  processFoodLogging,
+  processFoodUpdate,
+  processExerciseEstimate,
+  processExerciseLogging,
+  processExerciseUpdate,
+  processSummary,
+  processProfileSetup,
+  processProfileUpdate,
+  toPromptUser,
+  extractPendingFood,
+  extractPendingExercise,
+} from '@/lib/services/intentProcessor';
+import type { SummaryData } from '@/lib/prompts';
+
+// Feature flag for new intent-based routing
+const USE_INTENT_ROUTING = process.env.USE_INTENT_ROUTING === 'true';
+
+/**
+ * Handle message using intent-based routing (new architecture)
+ * Flow: Profile pre-check → Intent detection → Specialized processor
+ */
+async function handleMessageWithIntentRouting(
+  messageText: string,
+  user: any,
+  conversationHistory: any[]
+): Promise<{ message: string; action?: any }> {
+  const promptUser = toPromptUser(user);
+
+  // STEP 0: Check profile completion FIRST (no LLM call needed)
+  if (!user.profileCompleted) {
+    console.log('[INTENT-ROUTING] Profile incomplete - routing to profile setup');
+    const result = await processProfileSetup(messageText, promptUser, conversationHistory);
+    return { message: result.message, action: result.action ? { type: result.action, data: result.data } : undefined };
+  }
+
+  // STEP 1: Detect intent
+  console.log('[INTENT-ROUTING] Detecting intent...');
+  const intentResult = await detectIntent(messageText, promptUser, conversationHistory);
+  console.log('[INTENT-ROUTING] Detected intent:', intentResult.intent);
+
+  // STEP 2: Route based on intent
+  switch (intentResult.intent) {
+    case 'conversation':
+      // Already has message - just return it
+      return { message: intentResult.message || 'Hi! How can I help you track your calories today?' };
+
+    // FOOD FLOW
+    case 'food_estimate': {
+      // "I ate rice" → Estimate calories, ask to save
+      const result = await processFoodEstimate(messageText, promptUser, conversationHistory);
+      return { message: result.message };
+    }
+
+    case 'food_logging': {
+      // "yes" after food estimate → Save to database (NO LLM call)
+      const pendingFood = extractPendingFood(conversationHistory);
+      if (!pendingFood) {
+        return { message: "I don't see any food to save. What did you eat?" };
+      }
+      // Get today's calories from cache
+      const { getCachedTodayData } = await import('@/lib/cache/todayDataCache');
+      const todayData = await getCachedTodayData(user.id);
+      const result = processFoodLogging(promptUser, pendingFood, todayData.summary.totalCalories);
+      return {
+        message: result.message,
+        action: { type: result.action, data: result.data }
+      };
+    }
+
+    case 'food_update': {
+      // "update/delete the rice" → Modify existing entry
+      const { getCachedTodayData } = await import('@/lib/cache/todayDataCache');
+      const todayData = await getCachedTodayData(user.id);
+      const todayFood = todayData.summary.entries.map((e: any) => ({
+        id: e.id,
+        food: e.foodDescription || 'Food',
+        calories: e.calories,
+        time: new Date(e.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      }));
+      const result = await processFoodUpdate(messageText, promptUser, conversationHistory, todayFood);
+      return {
+        message: result.message,
+        action: result.action ? { type: result.action, data: result.data } : undefined
+      };
+    }
+
+    // EXERCISE FLOW
+    case 'exercise_estimate': {
+      // "I ran 30 min" → Estimate burn, ask to save
+      const result = await processExerciseEstimate(messageText, promptUser, conversationHistory);
+      return { message: result.message };
+    }
+
+    case 'exercise_logging': {
+      // "yes" after exercise estimate → Save to database (NO LLM call)
+      const pendingExercise = extractPendingExercise(conversationHistory);
+      if (!pendingExercise) {
+        return { message: "I don't see any exercise to save. What exercise did you do?" };
+      }
+      // Get today's burned calories from cache
+      const { getCachedTodayData } = await import('@/lib/cache/todayDataCache');
+      const todayData = await getCachedTodayData(user.id);
+      const todayBurned = todayData.exercises.reduce(
+        (sum: number, ex: any) => sum + (ex.caloriesBurned?.toNumber ? ex.caloriesBurned.toNumber() : ex.caloriesBurned),
+        0
+      );
+      const result = processExerciseLogging(pendingExercise, todayBurned);
+      return {
+        message: result.message,
+        action: { type: result.action, data: result.data }
+      };
+    }
+
+    case 'exercise_update': {
+      // "update/delete my run" → Modify existing entry
+      const { getCachedTodayData } = await import('@/lib/cache/todayDataCache');
+      const todayData = await getCachedTodayData(user.id);
+      const todayExercises = todayData.exercises.map((ex: any) => ({
+        id: ex.id,
+        type: ex.exerciseType,
+        duration: ex.durationMinutes,
+        calories: ex.caloriesBurned?.toNumber ? ex.caloriesBurned.toNumber() : ex.caloriesBurned,
+        time: new Date(ex.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+      }));
+      const result = await processExerciseUpdate(messageText, promptUser, conversationHistory, todayExercises);
+      return {
+        message: result.message,
+        action: result.action ? { type: result.action, data: result.data } : undefined
+      };
+    }
+
+    // OTHER
+    case 'summary': {
+      // Get comprehensive summary data
+      const { getCachedTodayData } = await import('@/lib/cache/todayDataCache');
+      const todayData = await getCachedTodayData(user.id);
+
+      const summaryData: SummaryData = {
+        period: 'today',
+        caloriesConsumed: todayData.summary.totalCalories,
+        caloriesBurned: todayData.exercises.reduce(
+          (sum: number, ex: any) => sum + (ex.caloriesBurned?.toNumber ? ex.caloriesBurned.toNumber() : ex.caloriesBurned),
+          0
+        ),
+        dailyGoal: promptUser.dailyCalorieGoal || 2000,
+        foodEntries: todayData.summary.entries.map((e: any) => ({
+          id: e.id,
+          food: e.foodDescription || 'Food',
+          calories: e.calories,
+          time: new Date(e.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        })),
+        exerciseEntries: todayData.exercises.map((ex: any) => ({
+          id: ex.id,
+          type: ex.exerciseType,
+          duration: ex.durationMinutes,
+          calories: ex.caloriesBurned?.toNumber ? ex.caloriesBurned.toNumber() : ex.caloriesBurned,
+          time: new Date(ex.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+        }))
+      };
+
+      const result = await processSummary(messageText, promptUser, conversationHistory, summaryData);
+      return { message: result };
+    }
+
+    case 'profile_update': {
+      const result = await processProfileUpdate(messageText, promptUser, conversationHistory);
+      return {
+        message: result.message,
+        action: result.action ? { type: result.action, data: result.data } : undefined
+      };
+    }
+
+    default:
+      // Fallback to conversation
+      return { message: intentResult.message || "I'm not sure what you mean. Can you tell me what you ate or what exercise you did?" };
+  }
+}
 
 interface TelegramUpdate {
   update_id: number;
@@ -120,6 +301,44 @@ export async function POST(request: NextRequest) {
     // This prevents the current message from appearing in history (avoiding duplication)
     const conversationHistory = await getConversationContext(userIdentifier);
 
+    // NEW INTENT-BASED ROUTING (feature flag controlled)
+    if (USE_INTENT_ROUTING) {
+      console.log('[ROUTING] Using new intent-based routing');
+
+      // Keep typing indicator alive
+      const typingInterval = setInterval(() => {
+        sendChatAction(chatId, 'typing').catch(() => {});
+      }, 4000);
+
+      let responseMessage: string;
+      try {
+        const result = await handleMessageWithIntentRouting(messageText, user, conversationHistory);
+        responseMessage = result.message;
+
+        // Execute action if present
+        if (result.action) {
+          await executeAction(result.action, user.id, user, conversationHistory);
+        }
+
+        // Clean response
+        responseMessage = cleanResponseForUser(responseMessage);
+      } finally {
+        clearInterval(typingInterval);
+        const processingDuration = Date.now() - processingStartTime;
+        console.log('[INTENT-ROUTING] Processing completed in', processingDuration, 'ms');
+      }
+
+      // Send message and log
+      await Promise.all([
+        sendTelegramMessage(chatId, formatForMarkdownV2(responseMessage), 'MarkdownV2'),
+        logConversation(userIdentifier, 'incoming', messageText),
+        logConversation(userIdentifier, 'outgoing', responseMessage),
+      ]);
+
+      return NextResponse.json({ ok: true });
+    }
+
+    // LEGACY ROUTING (original implementation)
     // Helper function: Check if message is a simple confirmation
     const isSimpleConfirmation = (text: string): boolean => {
       const confirmations = /^(yes|ya|ok|oke|iya|no|tidak|cancel|batal|skip)$/i;

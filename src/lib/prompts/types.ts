@@ -1,0 +1,203 @@
+/**
+ * Types for the multi-prompt intent-based routing system
+ */
+
+// Intent types detected by the intent detector
+export type Intent =
+  | 'conversation'
+  | 'food_estimate'
+  | 'food_logging'
+  | 'food_update'
+  | 'exercise_estimate'
+  | 'exercise_logging'
+  | 'exercise_update'
+  | 'summary'
+  | 'profile_update';
+
+// Result from intent detection
+export interface IntentResult {
+  intent: Intent;
+  message?: string; // Only present for 'conversation' intent
+}
+
+// Food item in an estimate
+export interface FoodEstimateItem {
+  food: string;
+  calories: number;
+  portion?: string;
+}
+
+// Result from food estimator
+export interface FoodEstimateResult {
+  estimate: {
+    items: FoodEstimateItem[];
+  };
+  message: string;
+}
+
+// Pending food to be saved (stored in conversation context)
+export interface PendingFood {
+  items: FoodEstimateItem[];
+  timestamp: number;
+}
+
+// Food item to save to database
+export interface FoodSaveItem {
+  foodDescription: string;
+  calories: number;
+  estimatedByAi: boolean;
+}
+
+// Result from food logger
+export interface FoodLoggerResult {
+  action: 'save_calories';
+  data: {
+    items: FoodSaveItem[];
+  };
+  message: string;
+}
+
+// Result from food update
+export interface FoodUpdateResult {
+  action?: 'update_calories' | 'delete_calories';
+  data?: {
+    entryId: string;
+    updates?: {
+      calories?: number;
+      foodDescription?: string;
+    };
+  };
+  message: string;
+}
+
+// Exercise estimate data
+export interface ExerciseEstimate {
+  exerciseType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  metValue: number;
+}
+
+// Result from exercise estimator
+export interface ExerciseEstimateResult {
+  estimate: ExerciseEstimate;
+  message: string;
+}
+
+// Pending exercise to be saved
+export interface PendingExercise {
+  exerciseType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  metValue: number;
+  timestamp: number;
+}
+
+// Result from exercise logger
+export interface ExerciseLoggerResult {
+  action: 'save_exercise';
+  data: {
+    exerciseType: string;
+    durationMinutes: number;
+    caloriesBurned: number;
+    metValue: number;
+  };
+  message: string;
+}
+
+// Result from exercise update
+export interface ExerciseUpdateResult {
+  action?: 'update_exercise' | 'delete_exercise';
+  data?: {
+    exerciseId: string;
+    updates?: {
+      durationMinutes?: number;
+      caloriesBurned?: number;
+      exerciseType?: string;
+    };
+  };
+  message: string;
+}
+
+// Profile data for save action
+export interface ProfileSaveData {
+  fullName?: string;
+  nickname?: string;
+  age?: number;
+  gender?: 'male' | 'female';
+  weightKg?: number;
+  heightCm?: number;
+  activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
+  deficitTarget?: number;
+}
+
+// Result from profile setup
+export interface ProfileSetupResult {
+  action?: 'save_profile';
+  data?: ProfileSaveData;
+  message: string;
+}
+
+// Result from profile update
+export interface ProfileUpdateResult {
+  action?: 'update_profile';
+  data?: Partial<ProfileSaveData>;
+  message: string;
+}
+
+// Summary data passed to summary generator
+export interface SummaryData {
+  period: 'today' | 'yesterday' | 'week' | 'month';
+  caloriesConsumed: number;
+  caloriesBurned: number;
+  dailyGoal: number;
+  foodEntries: Array<{
+    id: string;
+    food: string;
+    calories: number;
+    time: string;
+  }>;
+  exerciseEntries: Array<{
+    id: string;
+    type: string;
+    duration: number;
+    calories: number;
+    time: string;
+  }>;
+}
+
+// User type for prompts (simplified from database User)
+export interface PromptUser {
+  id: string;
+  phoneNumber: string;
+  fullName: string | null;
+  nickname: string | null;
+  age: number | null;
+  gender: string | null;
+  weightKg: number | null;
+  heightCm: number | null;
+  activityLevel: string | null;
+  bmr: number | null;
+  tdee: number | null;
+  dailyCalorieGoal: number | null;
+  deficitTarget: number | null;
+  profileCompleted: boolean;
+  preferredLanguage: string | null;
+}
+
+// Cached message for conversation history
+export interface CachedMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: number;
+}
+
+// Action result union type
+export type ActionResult =
+  | FoodLoggerResult
+  | FoodUpdateResult
+  | ExerciseLoggerResult
+  | ExerciseUpdateResult
+  | ProfileSetupResult
+  | ProfileUpdateResult
+  | { message: string };

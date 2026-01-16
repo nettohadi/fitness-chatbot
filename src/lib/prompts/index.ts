@@ -1,0 +1,23 @@
+/**
+ * Barrel export for all prompts
+ */
+
+// Types
+export * from './types';
+
+// Shared utilities
+export { LANG_RULES, buildUserContext, buildProfileStatus, formatFoodEntries, formatExerciseEntries } from './shared';
+
+// Prompt builders (require LLM call)
+export { buildIntentDetectorPrompt } from './intentDetector';
+export { buildFoodEstimatorPrompt } from './foodEstimator';
+export { buildFoodUpdatePrompt } from './foodUpdate';
+export { buildExerciseEstimatorPrompt } from './exerciseEstimator';
+export { buildExerciseUpdatePrompt } from './exerciseUpdate';
+export { buildSummaryPrompt } from './summaryGenerator';
+export { buildProfileSetupPrompt } from './profileSetup';
+export { buildProfileUpdatePrompt } from './profileUpdate';
+
+// Action generators (NO LLM call needed - programmatic)
+export { generateFoodSaveAction } from './foodLogger';
+export { generateExerciseSaveAction } from './exerciseLogger';
