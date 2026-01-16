@@ -288,17 +288,34 @@ async function handleMessageWithIntentRouting(
       // Build daily breakdown for week/month
       let dailyBreakdown: SummaryData['dailyBreakdown'] = undefined;
       if (isMultiDay) {
+        // Helper to normalize date to YYYY-MM-DD string
+        const normalizeDate = (entryDate: any, createdAt: any): string => {
+          if (entryDate) {
+            // Handle Prisma Date object or string
+            if (entryDate instanceof Date) {
+              return entryDate.toISOString().split('T')[0];
+            }
+            // If it's already a string like "2026-01-15", use it directly
+            const dateStr = String(entryDate);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+              return dateStr;
+            }
+          }
+          // Fallback to createdAt
+          return new Date(createdAt).toISOString().split('T')[0];
+        };
+
         // Group calories by date
         const caloriesByDate: { [date: string]: number } = {};
         calories.forEach((e: any) => {
-          const date = e.entryDate?.toString() || new Date(e.createdAt).toISOString().split('T')[0];
+          const date = normalizeDate(e.entryDate, e.createdAt);
           caloriesByDate[date] = (caloriesByDate[date] || 0) + Number(e.calories);
         });
 
         // Group exercises by date
         const exercisesByDate: { [date: string]: number } = {};
         exercises.forEach((ex: any) => {
-          const date = ex.entryDate?.toString() || new Date(ex.createdAt).toISOString().split('T')[0];
+          const date = normalizeDate(ex.entryDate, ex.createdAt);
           const burned = ex.caloriesBurned?.toNumber?.() || Number(ex.caloriesBurned);
           exercisesByDate[date] = (exercisesByDate[date] || 0) + burned;
         });
@@ -307,12 +324,15 @@ async function handleMessageWithIntentRouting(
         const allDates = [...new Set([...Object.keys(caloriesByDate), ...Object.keys(exercisesByDate)])].sort().reverse();
 
         // Build daily breakdown
-        dailyBreakdown = allDates.map(date => {
-          const consumed = caloriesByDate[date] || 0;
-          const burned = exercisesByDate[date] || 0;
+        dailyBreakdown = allDates.map(dateStr => {
+          const consumed = caloriesByDate[dateStr] || 0;
+          const burned = exercisesByDate[dateStr] || 0;
           const deficit = tdee + burned - consumed;
-          const dayName = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
-          return { date, dayName, consumed, burned, deficit };
+          // Parse date parts manually to avoid timezone issues
+          const [year, month, day] = dateStr.split('-').map(Number);
+          const dateObj = new Date(year, month - 1, day); // month is 0-indexed
+          const dayName = dateObj.toLocaleDateString('en-US', { weekday: 'long' });
+          return { date: dateStr, dayName, consumed, burned, deficit };
         });
       }
 
