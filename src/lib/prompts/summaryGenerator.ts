@@ -11,19 +11,21 @@ import type { PromptUser, SummaryData } from './types';
  * Generates friendly, encouraging fitness summaries
  */
 export function buildSummaryPrompt(user: PromptUser, data: SummaryData): string {
+  // Remaining = goal - consumed + exercise
   const remaining = data.dailyGoal - data.caloriesConsumed + data.caloriesBurned;
-  const netCalories = data.caloriesConsumed - data.caloriesBurned;
+  // Deficit = TDEE + exercise - consumed (positive = calorie deficit, negative = surplus)
+  const deficit = data.tdee + data.caloriesBurned - data.caloriesConsumed;
 
   return `Generate fitness summary. Output PLAIN TEXT only (no JSON, no markdown).
 ${LANG_RULES}
 USER: ${buildUserContext(user)}
 
-TODAY'S DATA:
+${data.period.toUpperCase()}'S DATA (translate labels to user's language):
 📊 Goal: ${data.dailyGoal} kcal/day
 🍽️ Consumed: ${data.caloriesConsumed} kcal
-🔥 Burned: ${data.caloriesBurned} kcal
-📈 Net: ${netCalories} kcal (consumed - burned)
-✅ Remaining: ${remaining} kcal (goal - consumed + burned)
+💪 Exercise: ${data.caloriesBurned} kcal
+✅ Remaining: ${remaining} kcal
+📉 Deficit: ${deficit} kcal
 
 FOOD LOGGED (${data.foodEntries.length} items):
 ${formatFoodEntries(data.foodEntries)}
@@ -31,15 +33,12 @@ ${formatFoodEntries(data.foodEntries)}
 EXERCISE LOGGED (${data.exerciseEntries.length} items):
 ${formatExerciseEntries(data.exerciseEntries)}
 
-EXERCISE TRANSLATIONS (use in user's language):
-cycling = bersepeda/sepeda, running = lari, walking = jalan kaki, swimming = renang, gym = gym
-
 RULES:
-- TRANSLATE exercise types to user's language (e.g., "cycling" → "bersepeda" for Indonesian)
-- Show clear breakdown with emojis
-- Show net calories (consumed - burned) clearly
-- Show remaining calories for the day
-- Be encouraging (on track) or supportive (over goal)
-- List what they ate and exercised (in user's language)
-- Keep it organized and readable`;
+- Show 5 metrics: Goal, Consumed, Exercise, Remaining, Deficit
+- Remaining = Goal - Consumed + Exercise
+- Deficit = TDEE (${data.tdee}) + Exercise - Consumed
+- Positive deficit = losing weight (good!), negative = surplus
+- TRANSLATE exercise types (cycling→sepeda, running→lari, etc.)
+- List food and exercise entries
+- Be encouraging!`;
 }

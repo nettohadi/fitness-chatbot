@@ -151,6 +151,7 @@ export interface SummaryData {
   caloriesConsumed: number;
   caloriesBurned: number;
   dailyGoal: number;
+  tdee: number; // Total Daily Energy Expenditure
   foodEntries: Array<{
     id: string;
     food: string;

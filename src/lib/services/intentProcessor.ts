@@ -39,13 +39,15 @@ const PRICING = {
 
 /**
  * Call LLM with system prompt and conversation history
+ * @param temperature - Lower = more deterministic (good for calculations), default 0.7
  */
 async function callLLM(
   systemPrompt: string,
   userMessage: string,
   history: CachedMessage[],
   userId: string,
-  maxTokens: number = 512
+  maxTokens: number = 512,
+  temperature: number = 0.7
 ): Promise<string> {
   const messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt },
@@ -61,6 +63,7 @@ async function callLLM(
   const response = await openrouter.chat.completions.create({
     model: MODEL_ID,
     max_tokens: maxTokens,
+    temperature,
     messages,
   });
 
@@ -175,6 +178,7 @@ export interface FoodEstimateResult {
 
 /**
  * Process food estimate - user mentioned food they ate
+ * Uses low temperature (0.3) for more accurate calculations
  */
 export async function processFoodEstimate(
   message: string,
@@ -182,7 +186,8 @@ export async function processFoodEstimate(
   history: CachedMessage[]
 ): Promise<FoodEstimateResult> {
   const systemPrompt = buildFoodEstimatorPrompt(user);
-  const response = await callLLM(systemPrompt, message, history, user.id, 512);
+  // Low temperature for accurate calorie calculations
+  const response = await callLLM(systemPrompt, message, history, user.id, 512, 0.3);
   const result = parseJSON<{ estimate: { items: FoodEstimateItem[] }; message: string }>(response);
 
   if (result && result.estimate) {
@@ -254,6 +259,7 @@ export async function processFoodUpdate(
 
 /**
  * Process exercise estimate - user mentioned exercise they did
+ * Uses low temperature (0.3) for more accurate calculations
  */
 export async function processExerciseEstimate(
   message: string,
@@ -261,7 +267,8 @@ export async function processExerciseEstimate(
   history: CachedMessage[]
 ): Promise<{ estimate?: PendingExercise; message: string }> {
   const systemPrompt = buildExerciseEstimatorPrompt(user);
-  const response = await callLLM(systemPrompt, message, history, user.id, 512);
+  // Low temperature for accurate calorie calculations
+  const response = await callLLM(systemPrompt, message, history, user.id, 512, 0.3);
   const result = parseJSON<{ estimate: { exerciseType: string; durationMinutes: number; caloriesBurned: number; metValue: number }; message: string }>(response);
 
   if (result && result.estimate) {

@@ -207,6 +207,7 @@ async function handleMessageWithIntentRouting(
           0
         ),
         dailyGoal: promptUser.dailyCalorieGoal || 2000,
+        tdee: promptUser.tdee || 2000,
         foodEntries: todayData.summary.entries.map((e: any) => ({
           id: e.id,
           food: e.foodDescription || 'Food',
@@ -673,6 +674,12 @@ async function generateDateRangeSummary(
       exerciseByDate[date].push(ex);
     });
 
+    // Calculate TDEE and deficit
+    const tdee = user.tdee?.toNumber?.() || user.tdee || 2000;
+    const totalTdee = tdee * daysDiff;
+    const totalDeficit = totalTdee + totalCaloriesBurned - totalCaloriesConsumed;
+    const avgDailyDeficit = Math.round(totalDeficit / daysDiff);
+
     // Build structured data for Claude to format
     const structuredData = {
       period: periodLabel,
@@ -683,11 +690,14 @@ async function generateDateRangeSummary(
         consumed: totalCaloriesConsumed,
         burned: totalCaloriesBurned,
         net: netCalories,
+        deficit: totalDeficit,
       },
       averages: daysDiff > 1 ? {
         consumedPerDay: avgDailyConsumed,
         burnedPerDay: avgDailyBurned,
+        deficitPerDay: avgDailyDeficit,
       } : null,
+      tdee,
       dailyGoal: user.dailyCalorieGoal?.toNumber?.() || user.dailyCalorieGoal || null,
       foodByDate: Object.keys(foodByDate).sort().reverse().slice(0, 5).map(date => ({
         date,
@@ -723,6 +733,9 @@ ${JSON.stringify(structuredData, null, 2)}
 Important:
 - Use the user's language (detect from conversation history)
 - Match their communication style (formal/casual, emoji usage, etc.)
+- Show key metrics: Goal, Consumed, Exercise, Remaining, Deficit
+- Deficit = TDEE + Exercise - Consumed (positive = weight loss, negative = surplus)
+- For multi-day periods, show both totals and daily averages
 - Tell a story, don't just dump data
 - Highlight interesting patterns (e.g., "strong start to the week", "weekend splurge", etc.)
 - Compare to their daily goal if available
