@@ -5,11 +5,13 @@ import {
   addCalorieEntry,
   updateCalorieEntry,
   deleteCalorieEntry,
+  getTodayDate,
   getYesterdayDate,
   getCurrentWeekRange,
   getCurrentMonthRange,
   getLastNDaysRange,
-  getEntriesByDateRange
+  getEntriesByDateRange,
+  parseSpecificDate
 } from '@/lib/db/calories';
 import {
   addExerciseEntry,
@@ -42,6 +44,7 @@ import {
   processExerciseLogging,
   processExerciseUpdate,
   processSummary,
+  extractSummaryPeriod,
   processProfileSetup,
   processProfileUpdate,
   toPromptUser,
@@ -195,30 +198,112 @@ async function handleMessageWithIntentRouting(
 
     // OTHER
     case 'summary': {
-      // Get comprehensive summary data
-      const { getCachedTodayData } = await import('@/lib/cache/todayDataCache');
-      const todayData = await getCachedTodayData(user.id);
+      // Extract the period from user message using LLM
+      const periodResult = await extractSummaryPeriod(messageText, user.id);
+      const period = periodResult.period;
+
+      // For 'today', use cached data for speed
+      if (period === 'today') {
+        const { getCachedTodayData } = await import('@/lib/cache/todayDataCache');
+        const todayData = await getCachedTodayData(user.id);
+
+        const summaryData: SummaryData = {
+          period: 'today',
+          caloriesConsumed: todayData.summary.totalCalories,
+          caloriesBurned: todayData.exercises.reduce(
+            (sum: number, ex: any) => sum + (ex.caloriesBurned?.toNumber ? ex.caloriesBurned.toNumber() : ex.caloriesBurned),
+            0
+          ),
+          dailyGoal: promptUser.dailyCalorieGoal || 2000,
+          tdee: promptUser.tdee || 2000,
+          foodEntries: todayData.summary.entries.map((e: any) => ({
+            id: e.id,
+            food: e.foodDescription || 'Food',
+            calories: e.calories,
+            time: new Date(e.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          })),
+          exerciseEntries: todayData.exercises.map((ex: any) => ({
+            id: ex.id,
+            type: ex.exerciseType,
+            duration: ex.durationMinutes,
+            calories: ex.caloriesBurned?.toNumber ? ex.caloriesBurned.toNumber() : ex.caloriesBurned,
+            time: new Date(ex.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          }))
+        };
+
+        const result = await processSummary(messageText, promptUser, conversationHistory, summaryData);
+        return { message: result };
+      }
+
+      // For other periods (yesterday, week, month, specific), fetch from database
+      let startDate: string;
+      let endDate: string;
+
+      switch (period) {
+        case 'yesterday':
+          startDate = endDate = getYesterdayDate();
+          break;
+        case 'week':
+          const weekRange = getCurrentWeekRange();
+          startDate = weekRange.startDate;
+          endDate = weekRange.endDate;
+          break;
+        case 'month':
+          const monthRange = getCurrentMonthRange();
+          startDate = monthRange.startDate;
+          endDate = monthRange.endDate;
+          break;
+        case 'specific':
+          // Parse the specific date from LLM response
+          if (periodResult.date) {
+            const parsedDate = parseSpecificDate(periodResult.date);
+            if (parsedDate) {
+              startDate = endDate = parsedDate;
+            } else {
+              // Fallback to today if date parsing fails
+              startDate = endDate = getTodayDate();
+            }
+          } else {
+            startDate = endDate = getTodayDate();
+          }
+          break;
+        default:
+          startDate = endDate = getTodayDate();
+      }
+
+      // Fetch data for the period
+      const caloriesResult = await getEntriesByDateRange(user.id, startDate, endDate);
+      const calories = caloriesResult.success && caloriesResult.data ? caloriesResult.data : [];
+
+      const exercisesResult = await getExerciseSummaryByDateRange(user.id, startDate, endDate);
+      const exercises = exercisesResult.success && exercisesResult.data ? exercisesResult.data.exercises : [];
+
+      const totalCaloriesConsumed = calories.reduce((sum: number, entry: any) => sum + Number(entry.calories), 0);
+      const totalCaloriesBurned = exercises.reduce(
+        (sum: number, ex: any) => sum + (ex.caloriesBurned?.toNumber?.() || Number(ex.caloriesBurned)),
+        0
+      );
+
+      // Map period for SummaryData (use 'today' for specific dates since format is same)
+      const summaryPeriod = period === 'specific' ? 'today' : period;
 
       const summaryData: SummaryData = {
-        period: 'today',
-        caloriesConsumed: todayData.summary.totalCalories,
-        caloriesBurned: todayData.exercises.reduce(
-          (sum: number, ex: any) => sum + (ex.caloriesBurned?.toNumber ? ex.caloriesBurned.toNumber() : ex.caloriesBurned),
-          0
-        ),
+        period: summaryPeriod,
+        caloriesConsumed: totalCaloriesConsumed,
+        caloriesBurned: totalCaloriesBurned,
         dailyGoal: promptUser.dailyCalorieGoal || 2000,
         tdee: promptUser.tdee || 2000,
-        foodEntries: todayData.summary.entries.map((e: any) => ({
+        foodEntries: calories.map((e: any) => ({
           id: e.id,
           food: e.foodDescription || 'Food',
-          calories: e.calories,
+          calories: Number(e.calories),
           time: new Date(e.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
         })),
-        exerciseEntries: todayData.exercises.map((ex: any) => ({
+        exerciseEntries: exercises.map((ex: any) => ({
           id: ex.id,
           type: ex.exerciseType,
           duration: ex.durationMinutes,
-          calories: ex.caloriesBurned?.toNumber ? ex.caloriesBurned.toNumber() : ex.caloriesBurned,
+          calories: ex.caloriesBurned?.toNumber?.() || Number(ex.caloriesBurned),
           time: new Date(ex.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
         }))
       };

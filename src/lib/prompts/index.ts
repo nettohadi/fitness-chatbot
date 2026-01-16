@@ -17,5 +17,6 @@ export { buildExerciseEstimatorPrompt } from './exerciseEstimator';
 export { buildExerciseLoggerPrompt } from './exerciseLogger';
 export { buildExerciseUpdatePrompt } from './exerciseUpdate';
 export { buildSummaryPrompt } from './summaryGenerator';
+export { buildSummaryPeriodExtractorPrompt } from './summaryPeriodExtractor';
 export { buildProfileSetupPrompt } from './profileSetup';
 export { buildProfileUpdatePrompt } from './profileUpdate';

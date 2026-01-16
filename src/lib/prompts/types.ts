@@ -18,6 +18,8 @@ export type Intent =
 export interface IntentResult {
   intent: Intent;
   message?: string; // Only present for 'conversation' intent
+  period?: 'today' | 'yesterday' | 'week' | 'month' | 'specific'; // Only present for 'summary' intent
+  date?: string; // Only present when period is 'specific' (e.g., "January 10", "2025-01-10")
 }
 
 // Food item in an estimate

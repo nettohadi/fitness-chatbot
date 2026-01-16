@@ -15,6 +15,7 @@ import {
   buildExerciseLoggerPrompt,
   buildExerciseUpdatePrompt,
   buildSummaryPrompt,
+  buildSummaryPeriodExtractorPrompt,
   buildProfileSetupPrompt,
   buildProfileUpdatePrompt,
   type PromptUser,
@@ -334,6 +335,35 @@ export async function processExerciseUpdate(
   const result = parseJSON<{ action?: string; data?: any; message: string }>(response);
 
   return result || { message: response };
+}
+
+/**
+ * Summary period result from period extraction
+ */
+export interface SummaryPeriodResult {
+  period: 'today' | 'yesterday' | 'week' | 'month' | 'specific';
+  date?: string; // YYYY-MM-DD format for specific dates
+}
+
+/**
+ * Extract summary period from user message
+ * Uses LLM to parse period (today, yesterday, week, month, or specific date)
+ */
+export async function extractSummaryPeriod(
+  message: string,
+  userId: string
+): Promise<SummaryPeriodResult> {
+  const systemPrompt = buildSummaryPeriodExtractorPrompt();
+  // Use low tokens since this is a simple extraction, no history needed
+  const response = await callLLM(systemPrompt, message, [], userId, 128, 0.3);
+  const result = parseJSON<SummaryPeriodResult>(response);
+
+  if (result && result.period) {
+    return result;
+  }
+
+  // Default to today if parsing fails
+  return { period: 'today' };
 }
 
 /**

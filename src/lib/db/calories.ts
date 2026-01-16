@@ -387,6 +387,132 @@ export function getLastNDaysRange(days: number = 7, userTimezone?: string | null
 }
 
 /**
+ * Parse a specific date string to YYYY-MM-DD format
+ * Handles various formats like "2024-01-15", "January 15", "15 January", "tanggal 15 Januari"
+ * @param dateStr - Date string from user input (already parsed by LLM)
+ * @param userTimezone - Optional user timezone
+ * @returns Date string in YYYY-MM-DD format, or null if parsing fails
+ */
+export function parseSpecificDate(dateStr: string, userTimezone?: string | null): string | null {
+  const timezone = userTimezone || process.env.APP_TIMEZONE || 'Asia/Jakarta';
+
+  // If already in YYYY-MM-DD format, validate and return
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const parsed = new Date(dateStr + 'T12:00:00');
+    if (!isNaN(parsed.getTime())) {
+      return dateStr;
+    }
+  }
+
+  // Month name mappings (English and Indonesian)
+  const monthNames: { [key: string]: number } = {
+    // English
+    'january': 0, 'jan': 0,
+    'february': 1, 'feb': 1,
+    'march': 2, 'mar': 2,
+    'april': 3, 'apr': 3,
+    'may': 4,
+    'june': 5, 'jun': 5,
+    'july': 6, 'jul': 6,
+    'august': 7, 'aug': 7,
+    'september': 8, 'sep': 8, 'sept': 8,
+    'october': 9, 'oct': 9,
+    'november': 10, 'nov': 10,
+    'december': 11, 'dec': 11,
+    // Indonesian (only unique ones)
+    'januari': 0,
+    'februari': 1,
+    'maret': 2,
+    // 'april' same as English
+    'mei': 4,
+    'juni': 5,
+    'juli': 6,
+    'agustus': 7,
+    // 'september' same as English
+    'oktober': 9,
+    // 'november' same as English
+    'desember': 11,
+  };
+
+  const normalized = dateStr.toLowerCase().trim();
+
+  // Try to extract day and month from various formats
+  let day: number | null = null;
+  let month: number | null = null;
+  let year: number | null = null;
+
+  // Pattern: "15 January 2024" or "January 15 2024" or "15 Januari"
+  for (const [monthName, monthIndex] of Object.entries(monthNames)) {
+    if (normalized.includes(monthName)) {
+      month = monthIndex;
+      // Extract day number
+      const dayMatch = normalized.match(/(\d{1,2})/);
+      if (dayMatch) {
+        day = parseInt(dayMatch[1], 10);
+      }
+      // Extract year if present
+      const yearMatch = normalized.match(/(\d{4})/);
+      if (yearMatch) {
+        year = parseInt(yearMatch[1], 10);
+      }
+      break;
+    }
+  }
+
+  // Pattern: "tanggal 15" (Indonesian for "date 15") - assume current month
+  if (day === null && /tanggal\s*(\d{1,2})/i.test(normalized)) {
+    const match = normalized.match(/tanggal\s*(\d{1,2})/i);
+    if (match) {
+      day = parseInt(match[1], 10);
+    }
+  }
+
+  // If we have a day but no month, assume current month
+  if (day !== null && month === null) {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+    });
+    const [currentYear, currentMonth] = formatter.format(now).split('-').map(Number);
+    month = currentMonth - 1; // 0-indexed
+    year = year || currentYear;
+  }
+
+  // If we have day and month, construct the date
+  if (day !== null && month !== null) {
+    // Default to current year if not specified
+    if (year === null) {
+      const now = new Date();
+      const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: timezone,
+        year: 'numeric',
+      });
+      year = parseInt(formatter.format(now), 10);
+
+      // If the date is in the future, assume last year
+      const testDate = new Date(year, month, day);
+      const today = new Date();
+      if (testDate > today) {
+        year -= 1;
+      }
+    }
+
+    // Validate the date
+    const resultDate = new Date(year, month, day);
+    if (resultDate.getMonth() === month && resultDate.getDate() === day) {
+      const yyyy = resultDate.getFullYear();
+      const mm = String(resultDate.getMonth() + 1).padStart(2, '0');
+      const dd = String(resultDate.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Update an existing calorie entry
  *
  * @param entryId - Calorie entry ID
