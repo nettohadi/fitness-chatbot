@@ -11,13 +11,11 @@ export { LANG_RULES, buildUserContext, buildProfileStatus, formatFoodEntries, fo
 // Prompt builders (require LLM call)
 export { buildIntentDetectorPrompt } from './intentDetector';
 export { buildFoodEstimatorPrompt } from './foodEstimator';
+export { buildFoodLoggerPrompt } from './foodLogger';
 export { buildFoodUpdatePrompt } from './foodUpdate';
 export { buildExerciseEstimatorPrompt } from './exerciseEstimator';
+export { buildExerciseLoggerPrompt } from './exerciseLogger';
 export { buildExerciseUpdatePrompt } from './exerciseUpdate';
 export { buildSummaryPrompt } from './summaryGenerator';
 export { buildProfileSetupPrompt } from './profileSetup';
 export { buildProfileUpdatePrompt } from './profileUpdate';
-
-// Action generators (NO LLM call needed - programmatic)
-export { generateFoodSaveAction } from './foodLogger';
-export { generateExerciseSaveAction } from './exerciseLogger';

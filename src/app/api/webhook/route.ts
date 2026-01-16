@@ -45,8 +45,6 @@ import {
   processProfileSetup,
   processProfileUpdate,
   toPromptUser,
-  extractPendingFood,
-  extractPendingExercise,
 } from '@/lib/services/intentProcessor';
 import type { SummaryData } from '@/lib/prompts';
 
@@ -86,23 +84,37 @@ async function handleMessageWithIntentRouting(
     case 'food_estimate': {
       // "I ate rice" → Estimate calories, ask to save
       const result = await processFoodEstimate(messageText, promptUser, conversationHistory);
-      return { message: result.message };
+      // Include estimate data as hidden JSON for later extraction
+      const messageWithData = result.estimate
+        ? `${result.message}\n<!--ESTIMATE:${JSON.stringify({ estimate: result.estimate })}-->`
+        : result.message;
+      return { message: messageWithData };
     }
 
     case 'food_logging': {
-      // "yes" after food estimate → Save to database (NO LLM call)
-      const pendingFood = extractPendingFood(conversationHistory);
-      if (!pendingFood) {
-        return { message: "I don't see any food to save. What did you eat?" };
-      }
+      // "yes" after food estimate → Use LLM to extract details and save
       // Get today's calories from cache
       const { getCachedTodayData } = await import('@/lib/cache/todayDataCache');
       const todayData = await getCachedTodayData(user.id);
-      const result = processFoodLogging(promptUser, pendingFood, todayData.summary.totalCalories);
-      return {
-        message: result.message,
-        action: { type: result.action, data: result.data }
-      };
+      const result = await processFoodLogging(messageText, promptUser, conversationHistory, todayData.summary.totalCalories);
+
+      // Check if LLM returned a valid save action
+      if ('action' in result && result.action === 'save_calories') {
+        // Return action for execution - executeAction will handle save
+        // Store both messages so we can use failureMessage if save fails
+        return {
+          message: result.successMessage,
+          action: {
+            type: result.action,
+            data: result.data,
+            successMessage: result.successMessage,
+            failureMessage: result.failureMessage
+          }
+        };
+      }
+
+      // LLM couldn't extract food details - return its message
+      return { message: (result as { message: string }).message };
     }
 
     case 'food_update': {
@@ -126,15 +138,15 @@ async function handleMessageWithIntentRouting(
     case 'exercise_estimate': {
       // "I ran 30 min" → Estimate burn, ask to save
       const result = await processExerciseEstimate(messageText, promptUser, conversationHistory);
-      return { message: result.message };
+      // Include estimate data as hidden JSON for later extraction
+      const messageWithData = result.estimate
+        ? `${result.message}\n<!--ESTIMATE:${JSON.stringify({ estimate: result.estimate })}-->`
+        : result.message;
+      return { message: messageWithData };
     }
 
     case 'exercise_logging': {
-      // "yes" after exercise estimate → Save to database (NO LLM call)
-      const pendingExercise = extractPendingExercise(conversationHistory);
-      if (!pendingExercise) {
-        return { message: "I don't see any exercise to save. What exercise did you do?" };
-      }
+      // "yes" after exercise estimate → Use LLM to extract details and save
       // Get today's burned calories from cache
       const { getCachedTodayData } = await import('@/lib/cache/todayDataCache');
       const todayData = await getCachedTodayData(user.id);
@@ -142,11 +154,25 @@ async function handleMessageWithIntentRouting(
         (sum: number, ex: any) => sum + (ex.caloriesBurned?.toNumber ? ex.caloriesBurned.toNumber() : ex.caloriesBurned),
         0
       );
-      const result = processExerciseLogging(pendingExercise, todayBurned);
-      return {
-        message: result.message,
-        action: { type: result.action, data: result.data }
-      };
+      const result = await processExerciseLogging(messageText, promptUser, conversationHistory, todayBurned);
+
+      // Check if LLM returned a valid save action
+      if ('action' in result && result.action === 'save_exercise') {
+        // Return action for execution - executeAction will handle save
+        // Store both messages so we can use failureMessage if save fails
+        return {
+          message: result.successMessage,
+          action: {
+            type: result.action,
+            data: result.data,
+            successMessage: result.successMessage,
+            failureMessage: result.failureMessage
+          }
+        };
+      }
+
+      // LLM couldn't extract exercise details - return its message
+      return { message: (result as { message: string }).message };
     }
 
     case 'exercise_update': {
@@ -239,10 +265,14 @@ interface TelegramUpdate {
 
 /**
  * Clean response to ensure no JSON leaks to user
+ * Also removes hidden ESTIMATE tags used for data extraction
  */
 function cleanResponseForUser(response: string): string {
+  // Remove hidden ESTIMATE tags (used for data extraction, not for display)
+  let cleaned = response.replace(/\n?<!--ESTIMATE:.*?-->/g, '').trim();
+
   // Remove JSON code blocks
-  let cleaned = response.replace(/```json[\s\S]*?```/g, '').trim();
+  cleaned = cleaned.replace(/```json[\s\S]*?```/g, '').trim();
 
   // If response starts with { or [, it might be raw JSON - extract userMessage
   if (cleaned.startsWith('{') || cleaned.startsWith('[')) {
@@ -317,7 +347,21 @@ export async function POST(request: NextRequest) {
 
         // Execute action if present
         if (result.action) {
-          await executeAction(result.action, user.id, user, conversationHistory);
+          try {
+            await executeAction(result.action, user.id, user, conversationHistory);
+            // Use successMessage if available (from food_logging/exercise_logging)
+            if (result.action.successMessage) {
+              responseMessage = result.action.successMessage;
+            }
+          } catch (actionError) {
+            console.error('[INTENT-ROUTING] Action execution failed:', actionError);
+            // Use failureMessage if available, otherwise use generic error
+            if (result.action.failureMessage) {
+              responseMessage = result.action.failureMessage;
+            } else {
+              responseMessage = 'Sorry, something went wrong. Please try again.';
+            }
+          }
         }
 
         // Clean response

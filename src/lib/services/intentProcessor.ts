@@ -9,22 +9,17 @@ import type { CachedMessage } from '@/lib/cache/conversationCache';
 import {
   buildIntentDetectorPrompt,
   buildFoodEstimatorPrompt,
+  buildFoodLoggerPrompt,
   buildFoodUpdatePrompt,
   buildExerciseEstimatorPrompt,
+  buildExerciseLoggerPrompt,
   buildExerciseUpdatePrompt,
   buildSummaryPrompt,
   buildProfileSetupPrompt,
   buildProfileUpdatePrompt,
-  // Programmatic action generators (no LLM needed)
-  generateFoodSaveAction,
-  generateExerciseSaveAction,
   type PromptUser,
   type IntentResult,
-  type PendingFood,
-  type PendingExercise,
   type SummaryData,
-  type FoodLoggerResult,
-  type ExerciseLoggerResult,
 } from '@/lib/prompts';
 
 // Use OpenRouter for Gemini
@@ -140,16 +135,55 @@ export async function detectIntent(
 }
 
 /**
+ * Pending food type for tracking food estimates
+ */
+export interface PendingFood {
+  items: Array<{ food: string; calories: number; portion?: string }>;
+  timestamp: number;
+}
+
+/**
+ * Pending exercise type for tracking exercise estimates
+ */
+export interface PendingExercise {
+  exerciseType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  metValue: number;
+  timestamp: number;
+}
+
+/**
+ * Food estimate item
+ */
+export interface FoodEstimateItem {
+  food: string;
+  calories: number;
+  portion?: string;
+}
+
+/**
+ * Food estimate result
+ */
+export interface FoodEstimateResult {
+  estimate?: {
+    items: FoodEstimateItem[];
+    timestamp: number;
+  };
+  message: string;
+}
+
+/**
  * Process food estimate - user mentioned food they ate
  */
 export async function processFoodEstimate(
   message: string,
   user: PromptUser,
   history: CachedMessage[]
-): Promise<{ estimate?: PendingFood; message: string }> {
+): Promise<FoodEstimateResult> {
   const systemPrompt = buildFoodEstimatorPrompt(user);
   const response = await callLLM(systemPrompt, message, history, user.id, 512);
-  const result = parseJSON<{ estimate: { items: Array<{ food: string; calories: number; portion?: string }> }; message: string }>(response);
+  const result = parseJSON<{ estimate: { items: FoodEstimateItem[] }; message: string }>(response);
 
   if (result && result.estimate) {
     return {
@@ -166,15 +200,40 @@ export async function processFoodEstimate(
 }
 
 /**
- * Process food logging - user confirmed saving food
- * NO LLM CALL NEEDED - we already have pending food from estimate
+ * Food logging result with success and failure messages
  */
-export function processFoodLogging(
+export interface FoodLoggingResult {
+  action: 'save_calories';
+  data: {
+    items: Array<{
+      foodDescription: string;
+      calories: number;
+      estimatedByAi: boolean;
+    }>;
+  };
+  successMessage: string;
+  failureMessage: string;
+}
+
+/**
+ * Process food logging - user confirmed saving food
+ * Uses LLM to extract food details from conversation history
+ */
+export async function processFoodLogging(
+  message: string,
   user: PromptUser,
-  pendingFood: PendingFood,
+  history: CachedMessage[],
   todayCalories: number
-): FoodLoggerResult {
-  return generateFoodSaveAction(user, pendingFood, todayCalories);
+): Promise<FoodLoggingResult | { message: string }> {
+  const systemPrompt = buildFoodLoggerPrompt(user, todayCalories);
+  const response = await callLLM(systemPrompt, message, history, user.id, 512);
+  const result = parseJSON<FoodLoggingResult>(response);
+
+  if (result && result.action === 'save_calories' && result.data?.items) {
+    return result;
+  }
+
+  return { message: response };
 }
 
 /**
@@ -219,14 +278,39 @@ export async function processExerciseEstimate(
 }
 
 /**
- * Process exercise logging - user confirmed saving exercise
- * NO LLM CALL NEEDED - we already have pending exercise from estimate
+ * Exercise logging result with success and failure messages
  */
-export function processExerciseLogging(
-  pendingExercise: PendingExercise,
+export interface ExerciseLoggingResult {
+  action: 'save_exercise';
+  data: {
+    exerciseType: string;
+    durationMinutes: number;
+    caloriesBurned: number;
+    metValue: number;
+  };
+  successMessage: string;
+  failureMessage: string;
+}
+
+/**
+ * Process exercise logging - user confirmed saving exercise
+ * Uses LLM to extract exercise details from conversation history
+ */
+export async function processExerciseLogging(
+  message: string,
+  user: PromptUser,
+  history: CachedMessage[],
   todayBurned: number
-): ExerciseLoggerResult {
-  return generateExerciseSaveAction(pendingExercise, todayBurned);
+): Promise<ExerciseLoggingResult | { message: string }> {
+  const systemPrompt = buildExerciseLoggerPrompt(user, todayBurned);
+  const response = await callLLM(systemPrompt, message, history, user.id, 512);
+  const result = parseJSON<ExerciseLoggingResult>(response);
+
+  if (result && result.action === 'save_exercise' && result.data) {
+    return result;
+  }
+
+  return { message: response };
 }
 
 /**
@@ -315,6 +399,22 @@ export function toPromptUser(user: any): PromptUser {
 }
 
 /**
+ * Extract hidden ESTIMATE data from message
+ * Format: <!--ESTIMATE:{"estimate":{...}}-->
+ */
+function extractEstimateFromMessage(content: string): any | null {
+  const match = content.match(/<!--ESTIMATE:(.*?)-->/);
+  if (match) {
+    try {
+      return JSON.parse(match[1]);
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
  * Extract pending food from conversation history
  * Looks for the last food estimate that hasn't been saved
  */
@@ -323,7 +423,16 @@ export function extractPendingFood(history: CachedMessage[]): PendingFood | null
   for (let i = history.length - 1; i >= 0; i--) {
     const msg = history[i];
     if (msg.role === 'assistant') {
-      // Try to parse estimate from assistant message
+      // Try to extract from hidden ESTIMATE tag first
+      const hidden = extractEstimateFromMessage(msg.content);
+      if (hidden?.estimate?.items) {
+        return {
+          items: hidden.estimate.items,
+          timestamp: msg.timestamp instanceof Date ? msg.timestamp.getTime() : Date.now(),
+        };
+      }
+
+      // Fallback: try to parse raw JSON from message
       const parsed = parseJSON<{ estimate?: { items: Array<{ food: string; calories: number; portion?: string }> } }>(msg.content);
       if (parsed?.estimate?.items) {
         return {
@@ -345,7 +454,16 @@ export function extractPendingExercise(history: CachedMessage[]): PendingExercis
   for (let i = history.length - 1; i >= 0; i--) {
     const msg = history[i];
     if (msg.role === 'assistant') {
-      // Try to parse estimate from assistant message
+      // Try to extract from hidden ESTIMATE tag first
+      const hidden = extractEstimateFromMessage(msg.content);
+      if (hidden?.estimate?.exerciseType) {
+        return {
+          ...hidden.estimate,
+          timestamp: msg.timestamp instanceof Date ? msg.timestamp.getTime() : Date.now(),
+        };
+      }
+
+      // Fallback: try to parse raw JSON from message
       const parsed = parseJSON<{ estimate?: { exerciseType: string; durationMinutes: number; caloriesBurned: number; metValue: number } }>(msg.content);
       if (parsed?.estimate) {
         return {

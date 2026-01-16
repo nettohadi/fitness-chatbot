@@ -1,44 +1,54 @@
 /**
- * Food Logger - NO LLM NEEDED
- *
- * When user confirms ("yes"), we already have pending food from the estimate.
- * Just save to database and generate confirmation message programmatically.
+ * Food Logger Prompt
+ * Extracts food details from conversation history and generates save action
  */
 
-import type { PromptUser, PendingFood, FoodLoggerResult } from './types';
+import { LANG_RULES } from './shared';
+import type { PromptUser } from './types';
 
 /**
- * Generate food save action and confirmation message (NO LLM CALL)
- * This is called when user confirms saving food after an estimate
+ * Build the food logger system prompt
+ * User confirmed saving - extract food from history and generate save action
  */
-export function generateFoodSaveAction(
-  user: PromptUser,
-  pendingFood: PendingFood,
-  todayCalories: number
-): FoodLoggerResult {
+export function buildFoodLoggerPrompt(user: PromptUser, todayCalories: number): string {
   const goal = user.dailyCalorieGoal ? Math.round(user.dailyCalorieGoal) : 2000;
-  const pendingTotal = pendingFood.items.reduce((sum, item) => sum + item.calories, 0);
-  const newTotal = todayCalories + pendingTotal;
 
-  // Build the items array for the save action
-  const items = pendingFood.items.map(item => ({
-    foodDescription: item.food,
-    calories: item.calories,
-    estimatedByAi: true,
-  }));
+  return `User confirmed saving food. Extract food details from conversation history and generate save action.
+${LANG_RULES}
 
-  // Generate confirmation message
-  const foodList = pendingFood.items
-    .map(item => `${item.food}: ${item.calories} kcal`)
-    .join(', ');
+USER CONTEXT:
+- Daily goal: ${goal} kcal
+- Today so far: ${todayCalories} kcal
 
-  const message = pendingFood.items.length === 1
-    ? `Saved! ${foodList}. Today: ${newTotal}/${goal} kcal`
-    : `Saved ${pendingFood.items.length} items! ${foodList}. Total today: ${newTotal}/${goal} kcal`;
+YOUR TASK:
+1. Find the most recent food estimate in conversation history (look for calorie estimates)
+2. Extract ALL food items with their calories
+3. Generate save action with success and failure messages
 
-  return {
-    action: 'save_calories',
-    data: { items },
-    message,
-  };
+CRITICAL RULES:
+1. Extract food items from the PREVIOUS assistant message (the estimate)
+2. Include ALL items that were estimated
+3. Show itemized list in success message
+4. Calculate new total (${todayCalories} + saved items)
+5. Output RAW JSON only - NO markdown, NO \`\`\`json
+
+OUTPUT FORMAT (raw JSON):
+{
+  "action": "save_calories",
+  "data": {
+    "items": [
+      {"foodDescription": "Rice", "calories": 230, "estimatedByAi": true},
+      {"foodDescription": "Chicken", "calories": 165, "estimatedByAi": true}
+    ]
+  },
+  "successMessage": "✅ Saved!\\n🍚 Rice: 230 kcal\\n🍗 Chicken: 165 kcal\\n\\nTotal: 395 kcal\\nToday: 895/${goal} kcal",
+  "failureMessage": "❌ Failed to save. Please try again or tell me what you ate."
+}
+
+EXAMPLES:
+Single item:
+{"action":"save_calories","data":{"items":[{"foodDescription":"Nasi goreng","calories":550,"estimatedByAi":true}]},"successMessage":"✅ Tersimpan!\\n🍳 Nasi goreng: 550 kkal\\n\\nHari ini: ${todayCalories + 550}/${goal} kkal","failureMessage":"❌ Gagal menyimpan. Coba lagi ya."}
+
+Multiple items:
+{"action":"save_calories","data":{"items":[{"foodDescription":"Rice","calories":230,"estimatedByAi":true},{"foodDescription":"Egg","calories":140,"estimatedByAi":true}]},"successMessage":"✅ Saved 2 items!\\n🍚 Rice: 230 kcal\\n🥚 Egg: 140 kcal\\n\\nTotal: 370 kcal\\nToday: ${todayCalories + 370}/${goal} kcal","failureMessage":"❌ Failed to save. Please try again."}`;
 }
