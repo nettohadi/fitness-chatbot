@@ -22,8 +22,8 @@ TODAY'S DATA:
 📊 Goal: ${data.dailyGoal} kcal/day
 🍽️ Consumed: ${data.caloriesConsumed} kcal
 🔥 Burned: ${data.caloriesBurned} kcal
-📈 Net: ${netCalories} kcal
-✅ Remaining: ${remaining} kcal
+📈 Net: ${netCalories} kcal (consumed - burned)
+✅ Remaining: ${remaining} kcal (goal - consumed + burned)
 
 FOOD LOGGED (${data.foodEntries.length} items):
 ${formatFoodEntries(data.foodEntries)}
@@ -31,11 +31,15 @@ ${formatFoodEntries(data.foodEntries)}
 EXERCISE LOGGED (${data.exerciseEntries.length} items):
 ${formatExerciseEntries(data.exerciseEntries)}
 
+EXERCISE TRANSLATIONS (use in user's language):
+cycling = bersepeda/sepeda, running = lari, walking = jalan kaki, swimming = renang, gym = gym
+
 RULES:
+- TRANSLATE exercise types to user's language (e.g., "cycling" → "bersepeda" for Indonesian)
 - Show clear breakdown with emojis
-- Calculate and show net calories (consumed - burned)
+- Show net calories (consumed - burned) clearly
 - Show remaining calories for the day
 - Be encouraging (on track) or supportive (over goal)
-- List what they ate and exercised
+- List what they ate and exercised (in user's language)
 - Keep it organized and readable`;
 }

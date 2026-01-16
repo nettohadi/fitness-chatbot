@@ -13,29 +13,28 @@ import type { PromptUser } from './types';
 export function buildExerciseEstimatorPrompt(user: PromptUser): string {
   const weight = user.weightKg || 70;
 
-  return `Calculate calories burned for exercise. SHOW the calculation to user.
+  return `Calculate calories burned. ALWAYS show MET value and calculation.
 ${LANG_RULES}
 
-USER PROFILE:
-- Weight: ${weight} kg (USE THIS for calculation!)
+USER: Weight ${weight}kg
 
-MET VALUES (use exact values):
-walking=3.5, jogging=7.0, running=8.0, cycling=6.8, swimming=8.0, gym=3.5, yoga=2.5, hiit=8.0, boxing=9.0, dancing=4.8, hiking=6.0
+MET VALUES:
+walking/jalan=3.5, jogging=7.0, running/lari=8.0, cycling/sepeda=6.8, swimming/renang=8.0, gym=3.5, yoga=2.5, hiit=8.0
 
-FORMULA: calories = MET × ${weight}kg × (minutes / 60)
-
-LANGUAGE MAPPING:
-sepeda/bersepeda→cycling, lari→running, renang→swimming, jalan→walking, gym/angkat beban→gym
+FORMULA: MET × ${weight}kg × (minutes ÷ 60) = calories
 
 CRITICAL RULES:
-1. ALWAYS use weight ${weight}kg in calculation
-2. SHOW the calculation formula in message
-3. Output RAW JSON only - NO markdown, NO \`\`\`json, NO code blocks
-4. Use English exercise type in estimate object
+1. ALWAYS show MET value for the exercise
+2. ALWAYS show full calculation: MET × weight × time
+3. Use weight ${weight}kg (from user profile)
+4. Output RAW JSON only - NO markdown, NO code blocks
+5. Use ENGLISH exercise type in data, translate in message
 
-OUTPUT FORMAT (raw JSON, no markdown):
-{"estimate":{"exerciseType":"cycling","durationMinutes":30,"caloriesBurned":${Math.round(6.8 * weight * 0.5)},"metValue":6.8},"message":"🚴 30 min cycling\\n\\nCalculation: 6.8 MET × ${weight}kg × 0.5hr = ${Math.round(6.8 * weight * 0.5)} kcal\\n\\nSave?"}
+OUTPUT FORMAT (raw JSON):
+{"estimate":{"exerciseType":"cycling","durationMinutes":30,"caloriesBurned":${Math.round(6.8 * weight * 0.5)},"metValue":6.8},"message":"🚴 Sepeda 30 menit\\n\\nMET: 6.8\\nHitungan: 6.8 × ${weight}kg × 0.5 jam = ${Math.round(6.8 * weight * 0.5)} kcal\\n\\nSimpan?"}
 
-Indonesian:
-{"estimate":{"exerciseType":"running","durationMinutes":20,"caloriesBurned":${Math.round(8.0 * weight * (20/60))},"metValue":8.0},"message":"🏃 20 menit lari\\n\\nHitungan: 8.0 MET × ${weight}kg × 0.33hr = ${Math.round(8.0 * weight * (20/60))} kkal\\n\\nSimpan?"}`;
+{"estimate":{"exerciseType":"running","durationMinutes":20,"caloriesBurned":${Math.round(8.0 * weight * (20/60))},"metValue":8.0},"message":"🏃 Lari 20 menit\\n\\nMET: 8.0\\nHitungan: 8.0 × ${weight}kg × 0.33 jam = ${Math.round(8.0 * weight * (20/60))} kcal\\n\\nSimpan?"}
+
+English:
+{"estimate":{"exerciseType":"walking","durationMinutes":45,"caloriesBurned":${Math.round(3.5 * weight * 0.75)},"metValue":3.5},"message":"🚶 Walking 45 min\\n\\nMET: 3.5\\nCalc: 3.5 × ${weight}kg × 0.75hr = ${Math.round(3.5 * weight * 0.75)} kcal\\n\\nSave?"}`;
 }

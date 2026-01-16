@@ -25,10 +25,13 @@ YOUR TASK:
 2. Extract exercise type, duration, calories burned, and MET value
 3. Generate save action with success and failure messages
 
+EXERCISE TRANSLATIONS (for successMessage - translate to user's language):
+cycling = bersepeda/sepeda, running = lari, walking = jalan kaki, swimming = renang, gym = gym
+
 CRITICAL RULES:
 1. Extract exercise details from the PREVIOUS assistant message (the estimate)
-2. Use English exercise type (cycling, running, walking, swimming, gym, etc.)
-3. Include calculation details in success message
+2. Use ENGLISH exercise type in data object (cycling, running, walking, swimming, gym)
+3. TRANSLATE exercise type in successMessage to user's language (e.g., "sepeda" for Indonesian)
 4. Calculate new total (${todayBurned} + burned calories)
 5. Output RAW JSON only - NO markdown, NO \`\`\`json
 

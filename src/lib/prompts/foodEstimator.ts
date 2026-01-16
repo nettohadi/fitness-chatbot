@@ -11,32 +11,37 @@ import type { PromptUser } from './types';
  * Estimates calories for food and asks "Save?"
  */
 export function buildFoodEstimatorPrompt(user: PromptUser): string {
-  return `Estimate calories for food. SHOW how you estimated (portion + cal/unit).
+  return `Estimate calories for food. ALWAYS show calculation breakdown.
 ${LANG_RULES}
 USER: ${buildUserContext(user)}
 
-CALORIE REFERENCES:
-- Rice: 130 kcal/100g, 1 cup=200g
-- Chicken breast: 165 kcal/100g
-- Egg: 70 kcal/large
-- Bread: 80 kcal/slice
-- Nasi goreng: 550 kcal/plate
-- Indomie: 380 kcal/pack
-- Banana: 90 kcal/medium
-- Apple: 95 kcal/medium
+CALORIE REFERENCES (kcal/100g or per unit):
+- Nasi putih: 130/100g, 1 piring=150g
+- Nasi goreng: 180/100g, 1 piring=250g
+- Ayam goreng: 260/100g
+- Ayam bakar: 190/100g
+- Telur: 155/100g, 1 butir=50g (77 kcal)
+- Tempe goreng: 200/100g
+- Tahu goreng: 270/100g
+- Ikan goreng: 200/100g
+- Indomie: 380/pack
+- Roti: 265/100g, 1 slice=30g (80 kcal)
+- Pisang: 89/100g, 1 medium=120g
+- Sayur: 25-50/100g
 
 CRITICAL RULES:
-1. SHOW estimation breakdown (portion × cal/unit)
-2. If portion not specified, assume typical serving and STATE it
-3. Output RAW JSON only - NO markdown, NO \`\`\`json, NO code blocks
-4. End message with "Save?" or "Simpan?"
+1. ALWAYS show: [portion] × [cal per unit] = [total]
+2. If portion unclear, assume typical portion and STATE it
+3. Show calories per 100g or per unit in breakdown
+4. Output RAW JSON only - NO markdown, NO code blocks
+5. End with "Simpan?" or "Save?"
 
-OUTPUT FORMAT (raw JSON, no markdown):
-{"estimate":{"items":[{"food":"Rice","calories":260,"portion":"1 cup (200g)"}]},"message":"🍚 Rice (1 cup)\\n\\n200g × 130 kcal/100g = 260 kcal\\n\\nSave?"}
+OUTPUT FORMAT (raw JSON):
+{"estimate":{"items":[{"food":"Nasi putih","calories":195,"portion":"1 piring (150g)"}]},"message":"🍚 Nasi putih\\n150g × 130 kcal/100g = 195 kcal\\n\\nSimpan?"}
 
-Multiple foods:
-{"estimate":{"items":[{"food":"Rice","calories":260,"portion":"1 cup"},{"food":"Egg","calories":140,"portion":"2 large"}]},"message":"🍚 Rice: 260 kcal (1 cup × 130/100g)\\n🥚 Eggs: 140 kcal (2 × 70)\\n\\nTotal: 400 kcal\\n\\nSave?"}
+Multiple:
+{"estimate":{"items":[{"food":"Nasi putih","calories":195,"portion":"1 piring"},{"food":"Ayam goreng","calories":130,"portion":"1 potong (50g)"}]},"message":"🍚 Nasi: 150g × 130/100g = 195 kcal\\n🍗 Ayam goreng: 50g × 260/100g = 130 kcal\\n\\nTotal: 325 kcal\\nSimpan?"}
 
-Indonesian:
-{"estimate":{"items":[{"food":"Nasi goreng","calories":550,"portion":"1 piring"}]},"message":"🍳 Nasi goreng (1 piring)\\n\\nEstimasi: ~550 kkal\\n\\nSimpan?"}`;
+English:
+{"estimate":{"items":[{"food":"Rice","calories":260,"portion":"1 cup (200g)"}]},"message":"🍚 Rice\\n200g × 130 kcal/100g = 260 kcal\\n\\nSave?"}`;
 }
