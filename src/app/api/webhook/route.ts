@@ -282,28 +282,65 @@ async function handleMessageWithIntentRouting(
         0
       );
 
-      // Map period for SummaryData (use 'today' for specific dates since format is same)
-      const summaryPeriod = period === 'specific' ? 'today' : period;
+      const tdee = promptUser.tdee || 2000;
+      const isMultiDay = period === 'week' || period === 'month';
+
+      // Build daily breakdown for week/month
+      let dailyBreakdown: SummaryData['dailyBreakdown'] = undefined;
+      if (isMultiDay) {
+        // Group calories by date
+        const caloriesByDate: { [date: string]: number } = {};
+        calories.forEach((e: any) => {
+          const date = e.entryDate?.toString() || new Date(e.createdAt).toISOString().split('T')[0];
+          caloriesByDate[date] = (caloriesByDate[date] || 0) + Number(e.calories);
+        });
+
+        // Group exercises by date
+        const exercisesByDate: { [date: string]: number } = {};
+        exercises.forEach((ex: any) => {
+          const date = ex.entryDate?.toString() || new Date(ex.createdAt).toISOString().split('T')[0];
+          const burned = ex.caloriesBurned?.toNumber?.() || Number(ex.caloriesBurned);
+          exercisesByDate[date] = (exercisesByDate[date] || 0) + burned;
+        });
+
+        // Get all unique dates and sort descending (most recent first)
+        const allDates = [...new Set([...Object.keys(caloriesByDate), ...Object.keys(exercisesByDate)])].sort().reverse();
+
+        // Build daily breakdown
+        dailyBreakdown = allDates.map(date => {
+          const consumed = caloriesByDate[date] || 0;
+          const burned = exercisesByDate[date] || 0;
+          const deficit = tdee + burned - consumed;
+          const dayName = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long' });
+          return { date, dayName, consumed, burned, deficit };
+        });
+      }
 
       const summaryData: SummaryData = {
-        period: summaryPeriod,
+        period: period,
+        specificDate: period === 'specific' ? startDate : undefined,
         caloriesConsumed: totalCaloriesConsumed,
         caloriesBurned: totalCaloriesBurned,
         dailyGoal: promptUser.dailyCalorieGoal || 2000,
-        tdee: promptUser.tdee || 2000,
-        foodEntries: calories.map((e: any) => ({
-          id: e.id,
-          food: e.foodDescription || 'Food',
-          calories: Number(e.calories),
-          time: new Date(e.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-        })),
-        exerciseEntries: exercises.map((ex: any) => ({
-          id: ex.id,
-          type: ex.exerciseType,
-          duration: ex.durationMinutes,
-          calories: ex.caloriesBurned?.toNumber?.() || Number(ex.caloriesBurned),
-          time: new Date(ex.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-        }))
+        tdee,
+        // For week/month: use daily breakdown, skip food/exercise details
+        ...(isMultiDay ? {
+          dailyBreakdown,
+        } : {
+          foodEntries: calories.map((e: any) => ({
+            id: e.id,
+            food: e.foodDescription || 'Food',
+            calories: Number(e.calories),
+            time: new Date(e.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          })),
+          exerciseEntries: exercises.map((ex: any) => ({
+            id: ex.id,
+            type: ex.exerciseType,
+            duration: ex.durationMinutes,
+            calories: ex.caloriesBurned?.toNumber?.() || Number(ex.caloriesBurned),
+            time: new Date(ex.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          }))
+        })
       };
 
       const result = await processSummary(messageText, promptUser, conversationHistory, summaryData);

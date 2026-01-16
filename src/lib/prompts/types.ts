@@ -147,26 +147,39 @@ export interface ProfileUpdateResult {
   message: string;
 }
 
+// Daily breakdown for week/month summaries
+export interface DailyBreakdown {
+  date: string; // YYYY-MM-DD
+  dayName: string; // e.g., "Monday", "Senin"
+  consumed: number;
+  burned: number;
+  deficit: number; // TDEE + burned - consumed
+}
+
 // Summary data passed to summary generator
 export interface SummaryData {
-  period: 'today' | 'yesterday' | 'week' | 'month';
+  period: 'today' | 'yesterday' | 'week' | 'month' | 'specific';
+  specificDate?: string; // YYYY-MM-DD format, only when period is 'specific'
   caloriesConsumed: number;
   caloriesBurned: number;
   dailyGoal: number;
   tdee: number; // Total Daily Energy Expenditure
-  foodEntries: Array<{
+  // For today/yesterday/specific - show food and exercise details
+  foodEntries?: Array<{
     id: string;
     food: string;
     calories: number;
     time: string;
   }>;
-  exerciseEntries: Array<{
+  exerciseEntries?: Array<{
     id: string;
     type: string;
     duration: number;
     calories: number;
     time: string;
   }>;
+  // For week/month - show daily breakdown instead
+  dailyBreakdown?: DailyBreakdown[];
 }
 
 // User type for prompts (simplified from database User)
