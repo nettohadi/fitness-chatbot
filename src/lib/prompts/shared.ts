@@ -48,7 +48,7 @@ export function buildProfileStatus(user: PromptUser): string {
 }
 
 /**
- * Format food entries for display in prompts
+ * Format food entries for display in prompts (WITH IDs - for update operations)
  */
 export function formatFoodEntries(entries: Array<{ id: string; food: string; calories: number; time: string }>): string {
   if (!entries.length) return 'None';
@@ -58,11 +58,31 @@ export function formatFoodEntries(entries: Array<{ id: string; food: string; cal
 }
 
 /**
- * Format exercise entries for display in prompts
+ * Format food entries for summaries (NO IDs - cleaner output for users)
+ */
+export function formatFoodEntriesForSummary(entries: Array<{ food: string; calories: number; time: string }>): string {
+  if (!entries.length) return 'None';
+  return entries
+    .map((e, i) => `${i + 1}. ${e.food}: ${e.calories} kcal (${e.time})`)
+    .join('\n');
+}
+
+/**
+ * Format exercise entries for display in prompts (WITH IDs - for update operations)
  */
 export function formatExerciseEntries(entries: Array<{ id: string; type: string; duration: number; calories: number; time: string }>): string {
   if (!entries.length) return 'None';
   return entries
     .map((e, i) => `${i + 1}. [${e.id.slice(0, 8)}] ${e.type}: ${e.duration}min, ${e.calories} kcal (${e.time})`)
+    .join('\n');
+}
+
+/**
+ * Format exercise entries for summaries (NO IDs - cleaner output for users)
+ */
+export function formatExerciseEntriesForSummary(entries: Array<{ type: string; duration: number; calories: number; time: string }>): string {
+  if (!entries.length) return 'None';
+  return entries
+    .map((e, i) => `${i + 1}. ${e.type}: ${e.duration}min, ${e.calories} kcal (${e.time})`)
     .join('\n');
 }

@@ -1,6 +1,6 @@
 /**
  * Food Logger Prompt
- * Extracts food details from conversation history and generates save action
+ * Extracts food details from user message OR conversation history and generates save action
  */
 
 import { LANG_RULES } from './shared';
@@ -8,47 +8,44 @@ import type { PromptUser } from './types';
 
 /**
  * Build the food logger system prompt
- * User confirmed saving - extract food from history and generate save action
+ * Handles both:
+ * 1. User confirmed saving after estimate (says "ya/yes")
+ * 2. User directly provides food with calories (e.g., "teh 5 kkal")
  */
 export function buildFoodLoggerPrompt(user: PromptUser, todayCalories: number): string {
   const goal = user.dailyCalorieGoal ? Math.round(user.dailyCalorieGoal) : 2000;
 
-  return `User confirmed saving food. Extract food details from conversation history and generate save action.
+  return `Extract food and save. Output RAW JSON ONLY - absolutely no text before or after the JSON.
 ${LANG_RULES}
 
 USER CONTEXT:
 - Daily goal: ${goal} kcal
 - Today so far: ${todayCalories} kcal
 
-YOUR TASK:
-1. Find the most recent food estimate in conversation history (look for calorie estimates)
-2. Extract ALL food items with their calories
-3. Generate save action with success and failure messages
+TWO SCENARIOS:
 
-CRITICAL RULES:
-1. Extract food items from the PREVIOUS assistant message (the estimate)
-2. Include ALL items that were estimated
-3. Show itemized list in success message
-4. Calculate new total (${todayCalories} + saved items)
-5. Output RAW JSON only - NO markdown, NO \`\`\`json
+1. DIRECT LOGGING (user provides calories in current message):
+   "teh 5 kkal" → Use EXACT calories: 5
+   "nasi 300 cal" → Use EXACT calories: 300
+   Set "estimatedByAi": false
 
-OUTPUT FORMAT (raw JSON):
-{
-  "action": "save_calories",
-  "data": {
-    "items": [
-      {"foodDescription": "Rice", "calories": 230, "estimatedByAi": true},
-      {"foodDescription": "Chicken", "calories": 165, "estimatedByAi": true}
-    ]
-  },
-  "successMessage": "✅ Saved!\\n🍚 Rice: 230 kcal\\n🍗 Chicken: 165 kcal\\n\\nTotal: 395 kcal\\nToday: 895/${goal} kcal",
-  "failureMessage": "❌ Failed to save. Please try again or tell me what you ate."
-}
+2. CONFIRMATION (user says "ya/yes/ok" after estimate):
+   Extract food from PREVIOUS assistant message
+   Set "estimatedByAi": true
+
+CRITICAL:
+- If user provides explicit calories → USE THAT EXACT VALUE, do not estimate
+- Output ONLY JSON - no explanations, no markdown, no text before/after
+- Start response with { and end with }
+
+OUTPUT (JSON only):
+{"action":"save_calories","data":{"items":[{"foodDescription":"Food","calories":123,"estimatedByAi":false}]},"successMessage":"✅ Tersimpan!\\n☕ Food: 123 kkal\\n\\nHari ini: X/${goal} kkal","failureMessage":"❌ Gagal menyimpan."}
 
 EXAMPLES:
-Single item:
-{"action":"save_calories","data":{"items":[{"foodDescription":"Nasi goreng","calories":550,"estimatedByAi":true}]},"successMessage":"✅ Tersimpan!\\n🍳 Nasi goreng: 550 kkal\\n\\nHari ini: ${todayCalories + 550}/${goal} kkal","failureMessage":"❌ Gagal menyimpan. Coba lagi ya."}
 
-Multiple items:
-{"action":"save_calories","data":{"items":[{"foodDescription":"Rice","calories":230,"estimatedByAi":true},{"foodDescription":"Egg","calories":140,"estimatedByAi":true}]},"successMessage":"✅ Saved 2 items!\\n🍚 Rice: 230 kcal\\n🥚 Egg: 140 kcal\\n\\nTotal: 370 kcal\\nToday: ${todayCalories + 370}/${goal} kcal","failureMessage":"❌ Failed to save. Please try again."}`;
+User: "teh 5 kkal"
+{"action":"save_calories","data":{"items":[{"foodDescription":"Teh","calories":5,"estimatedByAi":false}]},"successMessage":"✅ Tersimpan!\\n☕ Teh: 5 kkal\\n\\nHari ini: ${todayCalories + 5}/${goal} kkal","failureMessage":"❌ Gagal menyimpan."}
+
+User: "ya" (after nasi goreng 550 kcal estimate)
+{"action":"save_calories","data":{"items":[{"foodDescription":"Nasi goreng","calories":550,"estimatedByAi":true}]},"successMessage":"✅ Tersimpan!\\n🍳 Nasi goreng: 550 kkal\\n\\nHari ini: ${todayCalories + 550}/${goal} kkal","failureMessage":"❌ Gagal menyimpan."}`;
 }

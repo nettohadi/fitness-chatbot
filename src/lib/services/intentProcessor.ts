@@ -102,20 +102,105 @@ async function callLLM(
 }
 
 /**
- * Parse JSON from LLM response (handles markdown code blocks)
+ * Parse JSON from LLM response
+ * Handles: markdown code blocks, raw JSON, JSON with surrounding text
  */
 function parseJSON<T>(response: string): T | null {
   try {
-    // Try to extract JSON from markdown code block
+    // 1. Try to extract JSON from markdown code block
     const jsonMatch = response.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[1].trim());
     }
 
-    // Try to parse raw JSON
+    // 2. Try to parse raw JSON (response starts with { or [)
     const trimmed = response.trim();
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      // Find the end of the JSON object/array
+      let depth = 0;
+      let inString = false;
+      let escaped = false;
+      let endIndex = 0;
+
+      for (let i = 0; i < trimmed.length; i++) {
+        const char = trimmed[i];
+
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+
+        if (char === '\\' && inString) {
+          escaped = true;
+          continue;
+        }
+
+        if (char === '"') {
+          inString = !inString;
+          continue;
+        }
+
+        if (!inString) {
+          if (char === '{' || char === '[') depth++;
+          if (char === '}' || char === ']') {
+            depth--;
+            if (depth === 0) {
+              endIndex = i + 1;
+              break;
+            }
+          }
+        }
+      }
+
+      if (endIndex > 0) {
+        return JSON.parse(trimmed.substring(0, endIndex));
+      }
       return JSON.parse(trimmed);
+    }
+
+    // 3. Try to find JSON object anywhere in the response
+    const objectMatch = response.match(/\{[\s\S]*\}/);
+    if (objectMatch) {
+      // Parse only the first complete JSON object
+      const jsonStr = objectMatch[0];
+      let depth = 0;
+      let inString = false;
+      let escaped = false;
+      let endIndex = 0;
+
+      for (let i = 0; i < jsonStr.length; i++) {
+        const char = jsonStr[i];
+
+        if (escaped) {
+          escaped = false;
+          continue;
+        }
+
+        if (char === '\\' && inString) {
+          escaped = true;
+          continue;
+        }
+
+        if (char === '"') {
+          inString = !inString;
+          continue;
+        }
+
+        if (!inString) {
+          if (char === '{') depth++;
+          if (char === '}') {
+            depth--;
+            if (depth === 0) {
+              endIndex = i + 1;
+              break;
+            }
+          }
+        }
+      }
+
+      if (endIndex > 0) {
+        return JSON.parse(jsonStr.substring(0, endIndex));
+      }
     }
 
     return null;

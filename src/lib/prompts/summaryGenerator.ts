@@ -3,7 +3,7 @@
  * Optimized for cheap models - generates friendly fitness summaries
  */
 
-import { LANG_RULES, buildUserContext, formatFoodEntries, formatExerciseEntries } from './shared';
+import { LANG_RULES, buildUserContext, formatFoodEntriesForSummary, formatExerciseEntriesForSummary } from './shared';
 import type { PromptUser, SummaryData } from './types';
 
 /**
@@ -77,10 +77,10 @@ ${periodLabel}'S DATA (translate labels to user's language):
 📉 Deficit: ${deficit} kcal
 
 FOOD LOGGED (${data.foodEntries?.length || 0} items):
-${formatFoodEntries(data.foodEntries || [])}
+${formatFoodEntriesForSummary(data.foodEntries || [])}
 
 EXERCISE LOGGED (${data.exerciseEntries?.length || 0} items):
-${formatExerciseEntries(data.exerciseEntries || [])}
+${formatExerciseEntriesForSummary(data.exerciseEntries || [])}
 
 RULES:
 - Use ONLY the data provided above - do NOT reference conversation history
@@ -89,6 +89,7 @@ RULES:
 - Deficit = TDEE (${data.tdee}) + Exercise - Consumed
 - Positive deficit = losing weight (good!), negative = surplus
 - TRANSLATE exercise types (cycling→sepeda, running→lari, etc.)
-- List food and exercise entries
+- List food and exercise entries by name and calories only
+- NEVER include IDs, UUIDs, or any technical identifiers in output
 - Be encouraging!`;
 }
