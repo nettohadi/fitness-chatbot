@@ -385,14 +385,16 @@ export async function processFoodLogging(
 
 /**
  * Process food update - user wants to update/delete food entry
+ * @param periodLabel - Label for the period (e.g., "hari ini", "kemarin", "2026-01-15")
  */
 export async function processFoodUpdate(
   message: string,
   user: PromptUser,
   history: CachedMessage[],
-  todayFood: Array<{ id: string; food: string; calories: number; time: string }>
+  foodEntries: Array<{ id: string; food: string; calories: number; time: string }>,
+  periodLabel: string = 'hari ini'
 ): Promise<{ action?: string; data?: any; message: string }> {
-  const systemPrompt = buildFoodUpdatePrompt(user, todayFood);
+  const systemPrompt = buildFoodUpdatePrompt(user, foodEntries, periodLabel);
   const response = await callLLM(systemPrompt, message, history, user.id, 512);
   const result = parseJSON<{ action?: string; data?: any; message: string }>(response);
 
@@ -478,14 +480,16 @@ export async function processExerciseLogging(
 
 /**
  * Process exercise update - user wants to update/delete exercise entry
+ * @param periodLabel - Label for the period (e.g., "hari ini", "kemarin", "2026-01-15")
  */
 export async function processExerciseUpdate(
   message: string,
   user: PromptUser,
   history: CachedMessage[],
-  todayExercises: Array<{ id: string; type: string; duration: number; calories: number; time: string }>
+  exerciseEntries: Array<{ id: string; type: string; duration: number; calories: number; time: string }>,
+  periodLabel: string = 'hari ini'
 ): Promise<{ action?: string; data?: any; message: string }> {
-  const systemPrompt = buildExerciseUpdatePrompt(user, todayExercises);
+  const systemPrompt = buildExerciseUpdatePrompt(user, exerciseEntries, periodLabel);
   const response = await callLLM(systemPrompt, message, history, user.id, 512);
   const result = parseJSON<{ action?: string; data?: any; message: string }>(response);
 

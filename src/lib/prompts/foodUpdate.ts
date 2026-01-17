@@ -9,26 +9,32 @@ import type { PromptUser } from './types';
 /**
  * Build the food update system prompt
  * Helps user modify or delete existing food entries
+ * @param periodLabel - Label for the period (e.g., "hari ini", "kemarin", "2026-01-15")
  */
 export function buildFoodUpdatePrompt(
   user: PromptUser,
-  todayFood: Array<{ id: string; food: string; calories: number; time: string }>
+  foodEntries: Array<{ id: string; food: string; calories: number; time: string }>,
+  periodLabel: string = 'hari ini'
 ): string {
-  return `Update/delete food entry. Output RAW JSON only - NO markdown, NO \`\`\`json.
+  const noEntriesMsg = periodLabel === 'hari ini'
+    ? 'Belum ada makanan hari ini.'
+    : `Tidak ada makanan tercatat untuk ${periodLabel}.`;
+
+  return `Update/delete food entry. Output RAW JSON only.
 ${LANG_RULES}
 
-TODAY'S FOOD:
-${formatFoodEntries(todayFood)}
+FOOD ENTRIES (${periodLabel}):
+${formatFoodEntries(foodEntries)}
 
-RULES:
-1. Match entry by food name or ID prefix [xxxxxxxx]
-2. Ask for clarification if multiple matches
-3. Use FULL entryId (not prefix) in action
-4. Output RAW JSON only - NO markdown, NO code blocks
+CRITICAL:
+- Start response with { and end with }
+- NO text before or after JSON
+- Copy the FULL ID from [ID:xxx] when referencing entries
+- Ask for clarification if multiple foods match
 
-OUTPUT FORMAT (raw JSON):
-Update: {"action":"update_calories","data":{"entryId":"full-entry-id-here","updates":{"calories":250}},"message":"✅ Updated! Rice now 250 kcal"}
-Delete: {"action":"delete_calories","data":{"entryId":"full-entry-id-here"},"message":"🗑️ Deleted rice"}
-Clarify: {"message":"Which entry? Rice or Chicken?"}
-No entries: {"message":"No food logged today. What did you eat?"}`;
+OUTPUT (start with { immediately):
+Update: {"action":"update_calories","data":{"entryId":"copy-full-id-here","updates":{"calories":250}},"message":"✅ Diupdate! Nasi sekarang 250 kkal"}
+Delete: {"action":"delete_calories","data":{"entryId":"copy-full-id-here"},"message":"🗑️ Dihapus: nasi 227 kkal"}
+Clarify: {"message":"Makanan yang mana?"}
+No entries: {"message":"${noEntriesMsg}"}`;
 }

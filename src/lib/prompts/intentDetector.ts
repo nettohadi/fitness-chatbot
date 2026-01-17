@@ -49,6 +49,7 @@ FOOD DETECTION RULES:
 - "log 200 kcal roti" / "catat 200 kkal" → food_logging (explicit log command)
 - Confirmation after food estimate → food_logging
 - "edit nasi jadi 300 cal" / "hapus telur" → food_update
+- "hapus makanan kemarin" → food_update with period:yesterday
 
 EXERCISE DETECTION RULES:
 - "I ran" / "tadi lari" (no duration) → exercise_clarification
@@ -57,7 +58,14 @@ EXERCISE DETECTION RULES:
 - "log sepeda 30 menit" → exercise_logging (explicit log command)
 - Confirmation after exercise estimate → exercise_logging
 - "edit lari jadi 45 menit" / "hapus sepeda" → exercise_update
+- "hapus olahraga kemarin" → exercise_update with period:yesterday
 - Exercise verbs: run/lari, jog, cycle/sepeda, walk/jalan, swim/renang, gym, workout
+
+PERIOD EXTRACTION FOR UPDATE INTENTS:
+For food_update and exercise_update, also extract period:
+- today/hari ini (default) → "period":"today"
+- yesterday/kemarin → "period":"yesterday"
+- specific date → "period":"specific","date":"YYYY-MM-DD"
 
 CONFIRMATION DETECTION (check previous assistant message):
 If previous message contains "Simpan?" OR "Save?" OR "Mau saya catat?":
@@ -93,15 +101,16 @@ CRITICAL RULES:
 
 OUTPUT FORMATS (raw JSON only):
 {"intent":"conversation","language":"id"}
-{"intent":"conversation","language":"en"}
 {"intent":"food_clarification","language":"id"}
 {"intent":"food_estimate","language":"en"}
 {"intent":"food_logging","language":"id"}
 {"intent":"food_update","language":"en"}
+{"intent":"food_update","period":"yesterday","language":"id"}
 {"intent":"exercise_clarification","language":"id"}
 {"intent":"exercise_estimate","language":"en"}
 {"intent":"exercise_logging","language":"id"}
 {"intent":"exercise_update","language":"en"}
+{"intent":"exercise_update","period":"yesterday","language":"id"}
 {"intent":"summary","period":"today","language":"id"}
 {"intent":"summary","period":"yesterday","language":"en"}
 {"intent":"summary","period":"week","language":"id"}
@@ -113,10 +122,16 @@ EXAMPLES:
 "I ate 2 slices pizza" → {"intent":"food_estimate","language":"en"}
 "500 kkal nasi goreng" → {"intent":"food_logging","language":"id"}
 "ya" (after food estimate) → {"intent":"food_logging","language":"id"}
+"hapus nasi" → {"intent":"food_update","language":"id"}
+"hapus makanan kemarin" → {"intent":"food_update","period":"yesterday","language":"id"}
+"delete yesterday's food" → {"intent":"food_update","period":"yesterday","language":"en"}
 "tadi lari" → {"intent":"exercise_clarification","language":"id"}
 "ran 30 min" → {"intent":"exercise_estimate","language":"en"}
 "sepeda 1 jam level 6" → {"intent":"exercise_estimate","language":"id"}
 "ok simpan" (after exercise) → {"intent":"exercise_logging","language":"id"}
+"hapus olahraga" → {"intent":"exercise_update","language":"id"}
+"hapus olahraga kemarin" → {"intent":"exercise_update","period":"yesterday","language":"id"}
+"delete yesterday's exercise" → {"intent":"exercise_update","period":"yesterday","language":"en"}
 "sisa kalori?" → {"intent":"summary","period":"today","language":"id"}
 "how much left?" → {"intent":"summary","period":"today","language":"en"}
 "kalori kemarin" → {"intent":"summary","period":"yesterday","language":"id"}
@@ -124,7 +139,5 @@ EXAMPLES:
 "tanggal 10 januari" → {"intent":"summary","period":"specific","date":"2026-01-10","language":"id"}
 "berat saya 70kg" → {"intent":"profile_update","language":"id"}
 "halo" → {"intent":"conversation","language":"id"}
-"hello" → {"intent":"conversation","language":"en"}
-"apa yang harus saya makan?" → {"intent":"conversation","language":"id"}
-"is 500 deficit safe?" → {"intent":"conversation","language":"en"}`;
+"hello" → {"intent":"conversation","language":"en"}`;
 }

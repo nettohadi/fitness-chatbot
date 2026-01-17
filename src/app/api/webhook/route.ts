@@ -134,15 +134,38 @@ async function handleMessageWithIntentRouting(
 
     case 'food_update': {
       // "update/delete the rice" → Modify existing entry
-      const { getCachedTodayData } = await import('@/lib/cache/todayDataCache');
-      const todayData = await getCachedTodayData(user.id);
-      const todayFood = todayData.summary.entries.map((e: any) => ({
-        id: e.id,
+      // Support period extraction for yesterday or specific dates
+      const foodUpdatePeriod = intentResult.period || 'today';
+      let foodEntries: any[] = [];
+      let foodPeriodLabel = 'hari ini';
+
+      if (foodUpdatePeriod === 'today') {
+        const todayData = await getCachedTodayData(user.id);
+        foodEntries = todayData.summary.entries;
+        foodPeriodLabel = 'hari ini';
+      } else if (foodUpdatePeriod === 'yesterday') {
+        const yesterdayDate = getYesterdayDate();
+        const result = await getEntriesByDateRange(user.id, yesterdayDate, yesterdayDate);
+        foodEntries = result.success && result.data ? result.data : [];
+        foodPeriodLabel = 'kemarin';
+      } else if (foodUpdatePeriod === 'specific' && intentResult.date) {
+        const specificDate = parseSpecificDate(intentResult.date);
+        if (specificDate) {
+          const result = await getEntriesByDateRange(user.id, specificDate, specificDate);
+          foodEntries = result.success && result.data ? result.data : [];
+          foodPeriodLabel = intentResult.date;
+        }
+      }
+
+      // Format food entries with FULL IDs (not truncated)
+      const formattedFood = foodEntries.map((e: any) => ({
+        id: e.id, // Full UUID
         food: e.foodDescription || 'Food',
-        calories: e.calories,
+        calories: Number(e.calories),
         time: new Date(e.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
       }));
-      const result = await processFoodUpdate(messageText, promptUser, conversationHistory, todayFood);
+
+      const result = await processFoodUpdate(messageText, promptUser, conversationHistory, formattedFood, foodPeriodLabel);
       return {
         message: result.message,
         action: result.action ? { type: result.action, data: result.data } : undefined
@@ -198,16 +221,39 @@ async function handleMessageWithIntentRouting(
 
     case 'exercise_update': {
       // "update/delete my run" → Modify existing entry
-      const { getCachedTodayData } = await import('@/lib/cache/todayDataCache');
-      const todayData = await getCachedTodayData(user.id);
-      const todayExercises = todayData.exercises.map((ex: any) => ({
-        id: ex.id,
+      // Support period extraction for yesterday or specific dates
+      const exerciseUpdatePeriod = intentResult.period || 'today';
+      let exerciseEntries: any[] = [];
+      let exercisePeriodLabel = 'hari ini';
+
+      if (exerciseUpdatePeriod === 'today') {
+        const todayData = await getCachedTodayData(user.id);
+        exerciseEntries = todayData.exercises;
+        exercisePeriodLabel = 'hari ini';
+      } else if (exerciseUpdatePeriod === 'yesterday') {
+        const yesterdayDate = getYesterdayDate();
+        const result = await getExercisesByDateRange(user.id, yesterdayDate, yesterdayDate);
+        exerciseEntries = result.success && result.data ? result.data : [];
+        exercisePeriodLabel = 'kemarin';
+      } else if (exerciseUpdatePeriod === 'specific' && intentResult.date) {
+        const specificDate = parseSpecificDate(intentResult.date);
+        if (specificDate) {
+          const result = await getExercisesByDateRange(user.id, specificDate, specificDate);
+          exerciseEntries = result.success && result.data ? result.data : [];
+          exercisePeriodLabel = intentResult.date;
+        }
+      }
+
+      // Format exercise entries with FULL IDs (not truncated)
+      const formattedExercises = exerciseEntries.map((ex: any) => ({
+        id: ex.id, // Full UUID
         type: ex.exerciseType,
         duration: ex.durationMinutes,
         calories: ex.caloriesBurned?.toNumber ? ex.caloriesBurned.toNumber() : ex.caloriesBurned,
         time: new Date(ex.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
       }));
-      const result = await processExerciseUpdate(messageText, promptUser, conversationHistory, todayExercises);
+
+      const result = await processExerciseUpdate(messageText, promptUser, conversationHistory, formattedExercises, exercisePeriodLabel);
       return {
         message: result.message,
         action: result.action ? { type: result.action, data: result.data } : undefined
@@ -434,15 +480,36 @@ function cleanResponseForUser(response: string): string {
   // Remove JSON code blocks
   cleaned = cleaned.replace(/```json[\s\S]*?```/g, '').trim();
 
-  // If response starts with { or [, it might be raw JSON - extract userMessage
+  // If response starts with { or [, it's raw JSON - extract message field
   if (cleaned.startsWith('{') || cleaned.startsWith('[')) {
     try {
       const parsed = JSON.parse(cleaned);
-      if (parsed.userMessage) {
+      // Try to extract user-facing message from various possible fields
+      if (parsed.message) {
+        cleaned = parsed.message;
+      } else if (parsed.userMessage) {
         cleaned = parsed.userMessage;
+      } else if (parsed.successMessage) {
+        cleaned = parsed.successMessage;
       }
     } catch (e) {
-      // Not valid JSON, leave as is
+      // Not valid JSON or parsing failed
+      // Try to find and extract a JSON object from the response
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.message) {
+            cleaned = parsed.message;
+          } else if (parsed.userMessage) {
+            cleaned = parsed.userMessage;
+          } else if (parsed.successMessage) {
+            cleaned = parsed.successMessage;
+          }
+        } catch (e2) {
+          // Still can't parse, return original
+        }
+      }
     }
   }
 
