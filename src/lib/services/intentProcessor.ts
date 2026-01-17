@@ -8,9 +8,12 @@ import { logClaudeApiCall } from '@/lib/utils/apiLogger';
 import type { CachedMessage } from '@/lib/cache/conversationCache';
 import {
   buildIntentDetectorPrompt,
+  buildConversationPrompt,
+  buildFoodClarificationPrompt,
   buildFoodEstimatorPrompt,
   buildFoodLoggerPrompt,
   buildFoodUpdatePrompt,
+  buildExerciseClarificationPrompt,
   buildExerciseEstimatorPrompt,
   buildExerciseLoggerPrompt,
   buildExerciseUpdatePrompt,
@@ -21,21 +24,27 @@ import {
   type PromptUser,
   type IntentResult,
   type SummaryData,
+  type Language,
 } from '@/lib/prompts';
 
-// Use OpenRouter for Gemini
+// Use OpenRouter for LLM calls
 const openrouter = new OpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
   apiKey: process.env.OPENROUTER_API_KEY,
 });
 
-// Model configuration - Gemini 2.0 Flash via OpenRouter (cheap and fast)
-const MODEL_ID = 'google/gemini-2.0-flash-001';
+// Model configuration from environment variable
+// Default: Gemini 2.0 Flash (cheap and fast)
+// Alternatives: 'openai/gpt-4o-mini', 'anthropic/claude-3.5-haiku', 'meta-llama/llama-3.1-8b-instruct'
+const MODEL_ID = process.env.LLM_MODEL_ID || 'google/gemini-2.0-flash-001';
 
-// Pricing per 1M tokens (for cost calculation)
+// Pricing per 1M tokens (for cost calculation) - update when changing models
+// Gemini 2.0 Flash: input $0.10, output $0.40
+// GPT-4o mini: input $0.15, output $0.60
+// Claude 3.5 Haiku: input $0.80, output $4.00
 const PRICING = {
-  input: 0.10,
-  output: 0.40,
+  input: parseFloat(process.env.LLM_PRICING_INPUT || '0.10'),
+  output: parseFloat(process.env.LLM_PRICING_OUTPUT || '0.40'),
 };
 
 /**
@@ -132,10 +141,57 @@ export async function detectIntent(
 
   if (!result || !result.intent) {
     // Default to conversation if parsing fails
-    return { intent: 'conversation', message: response };
+    return { intent: 'conversation', language: 'id' };
+  }
+
+  // Ensure language is always present
+  if (!result.language) {
+    result.language = 'id';
   }
 
   return result;
+}
+
+/**
+ * Process conversation intent - greetings, out-of-scope, general chat
+ */
+export async function processConversation(
+  message: string,
+  user: PromptUser,
+  history: CachedMessage[],
+  language: Language
+): Promise<string> {
+  const systemPrompt = buildConversationPrompt(user, language);
+  const response = await callLLM(systemPrompt, message, history, user.id, 256);
+  return response;
+}
+
+/**
+ * Process food clarification - user mentioned food but no quantity
+ */
+export async function processFoodClarification(
+  message: string,
+  userId: string,
+  history: CachedMessage[],
+  language: Language
+): Promise<string> {
+  const systemPrompt = buildFoodClarificationPrompt(language);
+  const response = await callLLM(systemPrompt, message, history, userId, 128);
+  return response;
+}
+
+/**
+ * Process exercise clarification - user mentioned exercise but no duration
+ */
+export async function processExerciseClarification(
+  message: string,
+  userId: string,
+  history: CachedMessage[],
+  language: Language
+): Promise<string> {
+  const systemPrompt = buildExerciseClarificationPrompt(language);
+  const response = await callLLM(systemPrompt, message, history, userId, 128);
+  return response;
 }
 
 /**
@@ -286,15 +342,27 @@ export async function processExerciseEstimate(
 }
 
 /**
+ * Single exercise entry
+ */
+export interface ExerciseEntry {
+  exerciseType: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  metValue: number;
+}
+
+/**
  * Exercise logging result with success and failure messages
+ * Supports both single and multiple exercise entries
  */
 export interface ExerciseLoggingResult {
-  action: 'save_exercise';
+  action: 'save_exercise' | 'save_multiple_exercises';
   data: {
-    exerciseType: string;
-    durationMinutes: number;
-    caloriesBurned: number;
-    metValue: number;
+    exerciseType?: string;
+    durationMinutes?: number;
+    caloriesBurned?: number;
+    metValue?: number;
+    entries?: ExerciseEntry[]; // For multiple exercises with different intensities
   };
   successMessage: string;
   failureMessage: string;
@@ -303,6 +371,7 @@ export interface ExerciseLoggingResult {
 /**
  * Process exercise logging - user confirmed saving exercise
  * Uses LLM to extract exercise details from conversation history
+ * Supports multiple entries when different intensities are involved
  */
 export async function processExerciseLogging(
   message: string,
@@ -314,7 +383,8 @@ export async function processExerciseLogging(
   const response = await callLLM(systemPrompt, message, history, user.id, 512);
   const result = parseJSON<ExerciseLoggingResult>(response);
 
-  if (result && result.action === 'save_exercise' && result.data) {
+  // Support both single exercise and multiple exercises
+  if (result && (result.action === 'save_exercise' || result.action === 'save_multiple_exercises') && result.data) {
     return result;
   }
 

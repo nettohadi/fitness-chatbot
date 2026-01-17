@@ -41,6 +41,8 @@ export function buildSummaryPrompt(user: PromptUser, data: SummaryData): string 
 ${LANG_RULES}
 USER: ${buildUserContext(user)}
 
+CRITICAL: Use ONLY the data below. IGNORE any previous conversation messages.
+
 ${periodLabel} SUMMARY:
 📊 Goal: ${data.dailyGoal} kcal/day
 🍽️ Total Consumed: ${data.caloriesConsumed} kcal
@@ -51,6 +53,7 @@ DAILY BREAKDOWN (Date - Day: Consumed | Exercise | Deficit):
 ${formatDailyBreakdown(data.dailyBreakdown)}
 
 RULES:
+- Use ONLY the data provided above - do NOT reference conversation history
 - Show totals first, then daily breakdown
 - Translate day names to user's language (Monday→Senin, etc.)
 - Format: Date (DayName): Consumed | Exercise | Deficit
@@ -63,6 +66,8 @@ RULES:
   return `Generate fitness summary. Output PLAIN TEXT only (no JSON, no markdown).
 ${LANG_RULES}
 USER: ${buildUserContext(user)}
+
+CRITICAL: Use ONLY the data below. IGNORE any previous conversation messages.
 
 ${periodLabel}'S DATA (translate labels to user's language):
 📊 Goal: ${data.dailyGoal} kcal/day
@@ -78,6 +83,7 @@ EXERCISE LOGGED (${data.exerciseEntries?.length || 0} items):
 ${formatExerciseEntries(data.exerciseEntries || [])}
 
 RULES:
+- Use ONLY the data provided above - do NOT reference conversation history
 - Show 5 metrics: Goal, Consumed, Exercise, Remaining, Deficit
 - Remaining = Goal - Consumed + Exercise
 - Deficit = TDEE (${data.tdee}) + Exercise - Consumed

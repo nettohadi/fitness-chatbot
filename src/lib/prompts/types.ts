@@ -8,18 +8,24 @@ export type Intent =
   | 'food_estimate'
   | 'food_logging'
   | 'food_update'
+  | 'food_clarification' // User mentioned food but no quantity
   | 'exercise_estimate'
   | 'exercise_logging'
   | 'exercise_update'
+  | 'exercise_clarification' // User mentioned exercise but no duration
   | 'summary'
   | 'profile_update';
+
+// Supported languages
+export type Language = 'id' | 'en';
 
 // Result from intent detection
 export interface IntentResult {
   intent: Intent;
+  language: Language; // Detected user language
   message?: string; // Only present for 'conversation' intent
   period?: 'today' | 'yesterday' | 'week' | 'month' | 'specific'; // Only present for 'summary' intent
-  date?: string; // Only present when period is 'specific' (e.g., "January 10", "2025-01-10")
+  date?: string; // Only present when period is 'specific' (e.g., "2025-01-10")
 }
 
 // Food item in an estimate

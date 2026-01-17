@@ -10,9 +10,12 @@ export { LANG_RULES, buildUserContext, buildProfileStatus, formatFoodEntries, fo
 
 // Prompt builders (require LLM call)
 export { buildIntentDetectorPrompt } from './intentDetector';
+export { buildConversationPrompt } from './conversationHandler';
+export { buildFoodClarificationPrompt } from './foodClarification';
 export { buildFoodEstimatorPrompt } from './foodEstimator';
 export { buildFoodLoggerPrompt } from './foodLogger';
 export { buildFoodUpdatePrompt } from './foodUpdate';
+export { buildExerciseClarificationPrompt } from './exerciseClarification';
 export { buildExerciseEstimatorPrompt } from './exerciseEstimator';
 export { buildExerciseLoggerPrompt } from './exerciseLogger';
 export { buildExerciseUpdatePrompt } from './exerciseUpdate';

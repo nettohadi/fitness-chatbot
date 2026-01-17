@@ -37,9 +37,12 @@ import { generateErrorMessage } from '@/lib/services/responseGenerator';
 // Intent-based routing (new architecture)
 import {
   detectIntent,
+  processConversation,
+  processFoodClarification,
   processFoodEstimate,
   processFoodLogging,
   processFoodUpdate,
+  processExerciseClarification,
   processExerciseEstimate,
   processExerciseLogging,
   processExerciseUpdate,
@@ -77,12 +80,22 @@ async function handleMessageWithIntentRouting(
   console.log('[INTENT-ROUTING] Detected intent:', intentResult.intent);
 
   // STEP 2: Route based on intent
+  const language = intentResult.language || 'id';
+
   switch (intentResult.intent) {
-    case 'conversation':
-      // Already has message - just return it
-      return { message: intentResult.message || 'Hi! How can I help you track your calories today?' };
+    case 'conversation': {
+      // Use dedicated conversation handler (greetings, out-of-scope)
+      const response = await processConversation(messageText, promptUser, conversationHistory, language);
+      return { message: response };
+    }
 
     // FOOD FLOW
+    case 'food_clarification': {
+      // User mentioned food but no quantity - ask for portion
+      const response = await processFoodClarification(messageText, user.id, conversationHistory, language);
+      return { message: response };
+    }
+
     case 'food_estimate': {
       // "I ate rice" → Estimate calories, ask to save
       const result = await processFoodEstimate(messageText, promptUser, conversationHistory);
@@ -137,6 +150,12 @@ async function handleMessageWithIntentRouting(
     }
 
     // EXERCISE FLOW
+    case 'exercise_clarification': {
+      // User mentioned exercise but no duration - ask for time
+      const response = await processExerciseClarification(messageText, user.id, conversationHistory, language);
+      return { message: response };
+    }
+
     case 'exercise_estimate': {
       // "I ran 30 min" → Estimate burn, ask to save
       const result = await processExerciseEstimate(messageText, promptUser, conversationHistory);
@@ -158,8 +177,8 @@ async function handleMessageWithIntentRouting(
       );
       const result = await processExerciseLogging(messageText, promptUser, conversationHistory, todayBurned);
 
-      // Check if LLM returned a valid save action
-      if ('action' in result && result.action === 'save_exercise') {
+      // Check if LLM returned a valid save action (single or multiple)
+      if ('action' in result && (result.action === 'save_exercise' || result.action === 'save_multiple_exercises')) {
         // Return action for execution - executeAction will handle save
         // Store both messages so we can use failureMessage if save fails
         return {
@@ -1015,6 +1034,33 @@ async function executeAction(
         );
         console.log('✅ Saved exercise:', exerciseType, action.data.durationMinutes, 'min,', serverCalories, 'kcal');
         // Invalidate cache after saving
+        invalidateTodayCache(userId);
+        break;
+
+      case 'save_multiple_exercises':
+        console.log('📝 Saving multiple exercise entries');
+        const { calculateCaloriesBurned: calcCalories } = await import('@/lib/services/exerciseTracker');
+        const userWeightKg = user?.weightKg?.toNumber ? user.weightKg.toNumber() : Number(user?.weightKg) || 70;
+
+        // Process each entry with server-side calculation
+        for (const entry of action.data.entries) {
+          const normalizedType = findExerciseType(entry.exerciseType) || entry.exerciseType;
+          const { calories: entryCalories, metValue: entryMetValue } = calcCalories(
+            normalizedType,
+            entry.durationMinutes,
+            userWeightKg
+          );
+
+          await addExerciseEntry(
+            userId,
+            normalizedType,
+            entry.durationMinutes,
+            entryCalories,
+            entryMetValue
+          );
+          console.log(`  ✅ Saved: ${normalizedType} ${entry.durationMinutes} min, ${entryCalories} kcal (MET ${entryMetValue})`);
+        }
+        console.log(`✅ Saved ${action.data.entries.length} exercise entries`);
         invalidateTodayCache(userId);
         break;
 

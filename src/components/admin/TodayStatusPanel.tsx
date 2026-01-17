@@ -35,7 +35,8 @@ export default function TodayStatusPanel({ userId }: TodayStatusPanelProps) {
   const consumed = today.totalCaloriesConsumed
   const burned = today.totalCaloriesBurned
   const remaining = dailyGoal - consumed + burned
-  const percentage = dailyGoal > 0 ? Math.min((consumed / dailyGoal) * 100, 100) : 0
+  const totalQuote = dailyGoal + burned
+  const percentage = dailyGoal > 0 ? Math.min((consumed / totalQuote) * 100, 100) : 0
 
   // SVG Pie chart calculations
   const radius = 80
