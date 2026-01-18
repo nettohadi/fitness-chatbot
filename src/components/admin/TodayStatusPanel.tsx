@@ -1,14 +1,14 @@
 "use client"
 
 import { useUserTodayStatus } from "@/lib/hooks/useAdminData"
-import { Loader2 } from "lucide-react"
+import { Loader2, RefreshCw } from "lucide-react"
 
 interface TodayStatusPanelProps {
   userId: string
 }
 
 export default function TodayStatusPanel({ userId }: TodayStatusPanelProps) {
-  const { data, isLoading, error } = useUserTodayStatus(userId)
+  const { data, isLoading, error, refetch, isFetching } = useUserTodayStatus(userId)
 
   if (isLoading) {
     return (
@@ -43,14 +43,31 @@ export default function TodayStatusPanel({ userId }: TodayStatusPanelProps) {
   const circumference = 2 * Math.PI * radius
   const strokeDashoffset = circumference - (percentage / 100) * circumference
 
+  const handleRefresh = () => {
+    refetch()
+  }
+
   return (
     <div className="space-y-6">
-      {/* User Name */}
-      <div className="text-center">
-        <h3 className="text-lg font-medium text-foreground">
-          {user.fullName || user.nickname || "User"}&apos;s Today
-        </h3>
-        <p className="text-sm text-muted-foreground">{today.date}</p>
+      {/* Header with Refresh Button */}
+      <div className="flex items-center justify-between">
+        <div className="flex-1" /> {/* Spacer */}
+        <div className="text-center flex-1">
+          <h3 className="text-lg font-medium text-foreground">
+            {user.fullName || user.nickname || "User"}&apos;s Today
+          </h3>
+          <p className="text-sm text-muted-foreground">{today.date}</p>
+        </div>
+        <div className="flex-1 flex justify-end">
+          <button
+            onClick={handleRefresh}
+            disabled={isFetching}
+            className="p-2 rounded-lg hover:bg-secondary/50 transition-colors disabled:opacity-50"
+            title="Refresh data"
+          >
+            <RefreshCw className={`h-5 w-5 text-muted-foreground ${isFetching ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {/* Pie Chart */}

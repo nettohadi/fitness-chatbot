@@ -402,14 +402,29 @@ export async function processFoodUpdate(
 }
 
 /**
+ * Exercise estimate result
+ */
+export interface ExerciseEstimateResult {
+  estimate?: {
+    exerciseType: string;
+    durationMinutes: number;
+    caloriesBurned: number;
+    metValue: number;
+    timestamp: number;
+  };
+  message: string;
+}
+
+/**
  * Process exercise estimate - user mentioned exercise they did
+ * LLM estimates calories burned (like food estimation)
  * Uses low temperature (0.3) for more accurate calculations
  */
 export async function processExerciseEstimate(
   message: string,
   user: PromptUser,
   history: CachedMessage[]
-): Promise<{ estimate?: PendingExercise; message: string }> {
+): Promise<ExerciseEstimateResult> {
   const systemPrompt = buildExerciseEstimatorPrompt(user);
   // Low temperature for accurate calorie calculations
   const response = await callLLM(systemPrompt, message, history, user.id, 512, 0.3);
@@ -425,6 +440,7 @@ export async function processExerciseEstimate(
     };
   }
 
+  // Return raw response if parsing fails
   return { message: response };
 }
 

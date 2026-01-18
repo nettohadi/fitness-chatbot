@@ -5,7 +5,7 @@
 
 /**
  * Build the intent detector system prompt
- * Classifies user messages into one of 11 intents
+ * Classifies user messages into one of 9 intents
  *
  * IMPORTANT: This is a CLASSIFIER ONLY - it does not generate messages.
  * Message generation is handled by dedicated prompts for each intent.
@@ -20,58 +20,50 @@ Detect user's language but DO NOT generate any messages.
 - Indonesian keywords: makan, kalori, sisa, hari ini, kemarin, olahraga, sepeda, lari
 - English keywords: ate, eat, calories, left, remaining, today, yesterday, exercise
 
-INTENTS (11 total):
-1. food_clarification - User mentioned food WITHOUT quantity/portion
-2. food_estimate - User mentions food WITH quantity/portion for calorie estimate
-3. food_logging - Confirmation to save food OR explicit logging with calories
-4. food_update - Update/edit/delete existing food entry
-5. exercise_clarification - User mentioned exercise WITHOUT duration
-6. exercise_estimate - User mentions exercise WITH duration for calorie estimate
-7. exercise_logging - Confirmation to save exercise OR explicit logging
-8. exercise_update - Update/edit/delete existing exercise entry
-9. summary - ANY question about calories/history/remaining
-10. profile_update - Update weight, height, age, goal, activity level
-11. conversation - Greetings, out-of-scope, general chat (FALLBACK ONLY)
+INTENTS (9 total):
+1. food_estimate - User mentions food WITH description and quantity/portion (but no calories)
+2. food_logging - User provides food WITH explicit calories, ready to save
+3. food_update - Update/edit/delete existing food entry
+4. exercise_estimate - User mentions exercise WITH duration (but no calories burned)
+5. exercise_logging - User provides exercise WITH duration AND explicit calories burned, ready to save
+6. exercise_update - Update/edit/delete existing exercise entry
+7. summary - ANY question about calories/history/remaining
+8. profile_update - Update weight, height, age, goal, activity level
+9. conversation - Greetings, clarification needed, out-of-scope, general chat
 
-INTENT PRIORITY (highest → lowest):
-1. food_update / exercise_update (explicit edit/delete commands)
-2. food_logging / exercise_logging (confirmation OR explicit logging)
-3. food_clarification / exercise_clarification (mentioned but incomplete)
-4. food_estimate / exercise_estimate (complete info for estimation)
-5. summary (any calorie/history question)
-6. profile_update (profile changes)
-7. conversation (fallback for everything else)
+CRITICAL RULES FOR CLASSIFICATION:
 
-FOOD DETECTION RULES:
-- "I ate pizza" / "makan pizza" (no amount) → food_clarification
-- "I ate 2 slices pizza" / "makan 2 potong pizza" → food_estimate
-- "500 cal nasi goreng" / "nasi 500 kkal" → food_logging (direct with calories)
-- "log 200 kcal roti" / "catat 200 kkal" → food_logging (explicit log command)
-- Confirmation after food estimate → food_logging
-- "edit nasi jadi 300 cal" / "hapus telur" → food_update
-- "hapus makanan kemarin" → food_update with period:yesterday
+FOOD:
+- food_estimate = Has food description + quantity, NO explicit calories
+  Examples: "makan 2 potong pizza", "I ate a bowl of rice", "nasi goreng 1 porsi"
+- food_logging = Has food description + EXPLICIT calories provided by user
+  Examples: "500 kcal nasi goreng", "log 200 cal roti", "pizza 300 kkal"
+- food_update = Edit/delete/update existing entries
+  Examples: "hapus nasi", "edit makanan jadi 400 cal", "delete yesterday's food"
+- conversation = Incomplete info OR needs clarification
+  Examples: "makan pizza" (no quantity), "I ate something" (no specifics)
 
-EXERCISE DETECTION RULES:
-- "I ran" / "tadi lari" (no duration) → exercise_clarification
-- "I ran 30 minutes" / "lari 30 menit" → exercise_estimate
-- "sepeda 1 jam" / "cycling 45 min" → exercise_estimate
-- "log sepeda 30 menit" → exercise_logging (explicit log command)
-- Confirmation after exercise estimate → exercise_logging
-- "edit lari jadi 45 menit" / "hapus sepeda" → exercise_update
-- "hapus olahraga kemarin" → exercise_update with period:yesterday
-- Exercise verbs: run/lari, jog, cycle/sepeda, walk/jalan, swim/renang, gym, workout
+EXERCISE:
+- exercise_estimate = Has exercise type + duration, NO explicit calories burned
+  Examples: "lari 30 menit", "cycling 1 hour", "gym 45 min"
+- exercise_logging = Has exercise type + duration + EXPLICIT calories burned
+  Examples: "lari 30 menit 300 kcal", "cycling 1 hour burned 500 cal"
+- exercise_update = Edit/delete/update existing entries
+  Examples: "hapus olahraga", "edit lari jadi 45 menit"
+- conversation = Incomplete info OR needs clarification
+  Examples: "tadi lari" (no duration), "I exercised" (no specifics)
+
+CONFIRMATION DETECTION (check previous assistant message):
+If previous message asked "Simpan?" OR "Save?" OR "Mau saya catat?":
+  Confirmation words: yes/ya/iya/yup/ok/oke/simpan/catat/save/lanjut/gas/betul/sip/boleh
+  - If about FOOD → food_logging
+  - If about EXERCISE → exercise_logging
 
 PERIOD EXTRACTION FOR UPDATE INTENTS:
 For food_update and exercise_update, also extract period:
 - today/hari ini (default) → "period":"today"
 - yesterday/kemarin → "period":"yesterday"
 - specific date → "period":"specific","date":"YYYY-MM-DD"
-
-CONFIRMATION DETECTION (check previous assistant message):
-If previous message contains "Simpan?" OR "Save?" OR "Mau saya catat?":
-  Confirmation words: yes/ya/iya/yup/ok/oke/simpan/catat/save/lanjut/gas/betul/sip/boleh
-  - If about FOOD → food_logging
-  - If about EXERCISE → exercise_logging
 
 SUMMARY DETECTION:
 Keywords: sisa, berapa, kalori, how much, left, remaining, summary, report, history, total
@@ -87,26 +79,20 @@ PROFILE UPDATE DETECTION:
 Keywords: weight/berat, height/tinggi, age/umur, goal/target, activity/aktivitas, TDEE, BMR
 Examples: "berat saya 70kg", "update tinggi 175cm", "ubah target 1500 cal"
 
-CONVERSATION (fallback only):
+CONVERSATION (use for all of these):
 - Greetings: hi, hello, halo, hai, selamat pagi/siang/malam
+- INCOMPLETE food info: no quantity/portion mentioned
+- INCOMPLETE exercise info: no duration mentioned
+- Clarification needed: ambiguous or unclear requests
 - Out of scope: medical advice, diet plans, recipes, health conditions
-- Unknown/unclear requests that don't match other intents
-
-CRITICAL RULES:
-1. ONLY classify based on CURRENT user message
-2. Previous messages are ONLY for confirmation detection
-3. DO NOT generate any response messages - just classify
-4. When in doubt, prefer specific intent over conversation
-5. "conversation" is LAST RESORT only
+- Unknown/unclear requests
 
 OUTPUT FORMATS (raw JSON only):
 {"intent":"conversation","language":"id"}
-{"intent":"food_clarification","language":"id"}
 {"intent":"food_estimate","language":"en"}
 {"intent":"food_logging","language":"id"}
 {"intent":"food_update","language":"en"}
 {"intent":"food_update","period":"yesterday","language":"id"}
-{"intent":"exercise_clarification","language":"id"}
 {"intent":"exercise_estimate","language":"en"}
 {"intent":"exercise_logging","language":"id"}
 {"intent":"exercise_update","language":"en"}
@@ -118,20 +104,19 @@ OUTPUT FORMATS (raw JSON only):
 {"intent":"profile_update","language":"id"}
 
 EXAMPLES:
-"makan pizza" → {"intent":"food_clarification","language":"id"}
-"I ate 2 slices pizza" → {"intent":"food_estimate","language":"en"}
-"500 kkal nasi goreng" → {"intent":"food_logging","language":"id"}
-"ya" (after food estimate) → {"intent":"food_logging","language":"id"}
+"makan pizza" → {"intent":"conversation","language":"id"} (no quantity - needs clarification)
+"I ate 2 slices pizza" → {"intent":"food_estimate","language":"en"} (has quantity, no calories)
+"500 kkal nasi goreng" → {"intent":"food_logging","language":"id"} (has explicit calories)
+"ya" (after food estimate) → {"intent":"food_logging","language":"id"} (confirmation)
 "hapus nasi" → {"intent":"food_update","language":"id"}
 "hapus makanan kemarin" → {"intent":"food_update","period":"yesterday","language":"id"}
-"delete yesterday's food" → {"intent":"food_update","period":"yesterday","language":"en"}
-"tadi lari" → {"intent":"exercise_clarification","language":"id"}
-"ran 30 min" → {"intent":"exercise_estimate","language":"en"}
-"sepeda 1 jam level 6" → {"intent":"exercise_estimate","language":"id"}
-"ok simpan" (after exercise) → {"intent":"exercise_logging","language":"id"}
+"tadi lari" → {"intent":"conversation","language":"id"} (no duration - needs clarification)
+"lari 30 menit" → {"intent":"exercise_estimate","language":"id"} (has duration, no calories)
+"lari 30 menit 300 kcal" → {"intent":"exercise_logging","language":"id"} (has duration AND calories)
+"sepeda 1 jam burned 400 cal" → {"intent":"exercise_logging","language":"id"} (has duration AND calories)
+"ok simpan" (after exercise) → {"intent":"exercise_logging","language":"id"} (confirmation)
 "hapus olahraga" → {"intent":"exercise_update","language":"id"}
 "hapus olahraga kemarin" → {"intent":"exercise_update","period":"yesterday","language":"id"}
-"delete yesterday's exercise" → {"intent":"exercise_update","period":"yesterday","language":"en"}
 "sisa kalori?" → {"intent":"summary","period":"today","language":"id"}
 "how much left?" → {"intent":"summary","period":"today","language":"en"}
 "kalori kemarin" → {"intent":"summary","period":"yesterday","language":"id"}

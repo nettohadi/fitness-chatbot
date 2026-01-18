@@ -41,21 +41,50 @@ export async function addExerciseEntry(
 }
 
 /**
+ * Get today's date in YYYY-MM-DD format using configured timezone
+ * @param userTimezone - Optional user timezone
+ * @returns Today's date string
+ */
+function getExerciseTodayDate(userTimezone?: string | null): string {
+  const timezone = userTimezone || process.env.APP_TIMEZONE || 'Asia/Jakarta';
+  const now = new Date();
+
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+
+  return formatter.format(now);
+}
+
+/**
  * Get total calories burned from exercise today
  *
  * @param userId - User ID
+ * @param userTimezone - Optional user timezone
  * @returns Total calories burned today
  */
 export async function getTodayExerciseCalories(
-  userId: string
+  userId: string,
+  userTimezone?: string | null
 ): Promise<DbResult<number>> {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getExerciseTodayDate(userTimezone);
+
+    // Parse the date string and create start/end of day in UTC
+    const [year, month, day] = today.split('-').map(Number);
+    const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
     const result = await prisma.exerciseEntry.aggregate({
       where: {
         userId,
-        entryDate: new Date(today),
+        entryDate: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
       },
       _sum: {
         caloriesBurned: true,
@@ -79,23 +108,39 @@ export async function getTodayExerciseCalories(
  * Get today's exercise entries
  *
  * @param userId - User ID
+ * @param userTimezone - Optional user timezone
  * @returns Array of exercise entries
  */
 export async function getTodayExercises(
-  userId: string
+  userId: string,
+  userTimezone?: string | null
 ): Promise<DbResult<ExerciseEntry[]>> {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getExerciseTodayDate(userTimezone);
+
+    // Parse the date string and create start/end of day in UTC
+    const [year, month, day] = today.split('-').map(Number);
+    const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+    console.log(`[EXERCISE DATE DEBUG] Querying date: ${today}`);
+    console.log(`[EXERCISE DATE DEBUG] startOfDay UTC: ${startOfDay.toISOString()}`);
+    console.log(`[EXERCISE DATE DEBUG] endOfDay UTC: ${endOfDay.toISOString()}`);
 
     const exercises = await prisma.exerciseEntry.findMany({
       where: {
         userId,
-        entryDate: new Date(today),
+        entryDate: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
       },
       orderBy: {
         entryTime: 'desc',
       },
     });
+
+    console.log(`[EXERCISE DATE DEBUG] Found ${exercises.length} exercises for date ${today}`);
 
     return { success: true, data: exercises };
   } catch (error) {

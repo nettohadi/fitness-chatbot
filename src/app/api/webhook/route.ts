@@ -38,11 +38,9 @@ import { generateErrorMessage } from '@/lib/services/responseGenerator';
 import {
   detectIntent,
   processConversation,
-  processFoodClarification,
   processFoodEstimate,
   processFoodLogging,
   processFoodUpdate,
-  processExerciseClarification,
   processExerciseEstimate,
   processExerciseLogging,
   processExerciseUpdate,
@@ -90,11 +88,7 @@ async function handleMessageWithIntentRouting(
     }
 
     // FOOD FLOW
-    case 'food_clarification': {
-      // User mentioned food but no quantity - ask for portion
-      const response = await processFoodClarification(messageText, user.id, conversationHistory, language);
-      return { message: response };
-    }
+    // Note: food_clarification removed - now handled by conversation intent
 
     case 'food_estimate': {
       // "I ate rice" → Estimate calories, ask to save
@@ -173,11 +167,7 @@ async function handleMessageWithIntentRouting(
     }
 
     // EXERCISE FLOW
-    case 'exercise_clarification': {
-      // User mentioned exercise but no duration - ask for time
-      const response = await processExerciseClarification(messageText, user.id, conversationHistory, language);
-      return { message: response };
-    }
+    // Note: exercise_clarification removed - now handled by conversation intent
 
     case 'exercise_estimate': {
       // "I ran 30 min" → Estimate burn, ask to save
@@ -1001,22 +991,28 @@ async function executeAction(
           // Save each food item as a separate entry
           console.log(`📝 Saving ${action.data.items.length} food items...`);
           for (const item of action.data.items) {
-            await addCalorieEntry(
+            const saveResult = await addCalorieEntry(
               userId,
               item.calories,
               item.foodDescription,
               item.estimatedByAi || false
             );
+            if (!saveResult.success) {
+              throw new Error(saveResult.error || 'Failed to save calorie entry');
+            }
             console.log(`✅ Saved: ${item.foodDescription} - ${item.calories} cal`);
           }
         } else {
           // Single food item
-          await addCalorieEntry(
+          const saveResult = await addCalorieEntry(
             userId,
             action.data.calories,
             action.data.foodDescription,
             action.data.estimatedByAi || false
           );
+          if (!saveResult.success) {
+            throw new Error(saveResult.error || 'Failed to save calorie entry');
+          }
           console.log('✅ Saved calories:', action.data.calories);
         }
         // Invalidate cache after saving
@@ -1029,13 +1025,11 @@ async function executeAction(
           action.data.entryId,
           action.data.updates
         );
-        if (calorieUpdateResult.success) {
-          console.log('✅ Calorie entry updated successfully');
-          // Invalidate cache after update
-          invalidateTodayCache(userId);
-        } else {
-          console.error('❌ Failed to update calorie entry:', calorieUpdateResult.error);
+        if (!calorieUpdateResult.success) {
+          throw new Error(calorieUpdateResult.error || 'Failed to update calorie entry');
         }
+        console.log('✅ Calorie entry updated successfully');
+        invalidateTodayCache(userId);
         break;
 
       case 'delete_calories':
@@ -1043,64 +1037,55 @@ async function executeAction(
         const entryIds = action.data.entryIds || (action.data.entryId ? [action.data.entryId] : []);
         console.log('🗑️ Deleting calorie entries:', entryIds);
 
-        let deleteSuccessCount = 0;
         for (const entryId of entryIds) {
           const calorieDeleteResult = await deleteCalorieEntry(entryId);
-          if (calorieDeleteResult.success) {
-            deleteSuccessCount++;
-          } else {
-            console.error('❌ Failed to delete calorie entry:', entryId, calorieDeleteResult.error);
+          if (!calorieDeleteResult.success) {
+            throw new Error(calorieDeleteResult.error || `Failed to delete calorie entry: ${entryId}`);
           }
         }
-
-        if (deleteSuccessCount > 0) {
-          console.log(`✅ Deleted ${deleteSuccessCount}/${entryIds.length} calorie entries successfully`);
-          // Invalidate cache after delete
-          invalidateTodayCache(userId);
-        }
+        console.log(`✅ Deleted ${entryIds.length} calorie entries successfully`);
+        invalidateTodayCache(userId);
         break;
 
       case 'save_exercise':
         const exerciseType = findExerciseType(action.data.exerciseType) || action.data.exerciseType;
 
-        // Calculate calories burned SERVER-SIDE for accuracy
-        const { calculateCaloriesBurned, validateExerciseCalculation } = await import('@/lib/services/exerciseTracker');
-        const weightKg = user?.weightKg?.toNumber ? user.weightKg.toNumber() : Number(user?.weightKg) || 70;
-        const { calories: serverCalories, metValue: serverMetValue } = calculateCaloriesBurned(
-          exerciseType,
-          action.data.durationMinutes,
-          weightKg
-        );
+        // Check if user provided calories burned explicitly
+        const userProvidedCalories = action.data.caloriesBurned && action.data.userProvidedCalories;
 
-        // Validate that Claude's suggested value matches (within tolerance)
-        if (action.data.caloriesBurned) {
-          const isValid = validateExerciseCalculation(
-            serverMetValue,
-            weightKg,
+        let finalCalories: number;
+        let finalMetValue: number | undefined;
+
+        if (userProvidedCalories) {
+          // User explicitly provided calories - use their value
+          finalCalories = action.data.caloriesBurned;
+          finalMetValue = undefined; // No MET value when user provides calories
+          console.log('📊 Using user-provided calories:', finalCalories);
+        } else {
+          // Calculate calories burned SERVER-SIDE
+          const { calculateCaloriesBurned } = await import('@/lib/services/exerciseTracker');
+          const weightKg = user?.weightKg?.toNumber ? user.weightKg.toNumber() : Number(user?.weightKg) || 70;
+          const { calories: serverCalories, metValue: serverMetValue } = calculateCaloriesBurned(
+            exerciseType,
             action.data.durationMinutes,
-            action.data.caloriesBurned
+            weightKg
           );
-
-          if (!isValid) {
-            console.warn(
-              `⚠️ Exercise calorie calculation mismatch! ` +
-              `Claude suggested: ${action.data.caloriesBurned}, ` +
-              `Server calculated: ${serverCalories} ` +
-              `(MET: ${serverMetValue}, Weight: ${weightKg}kg, Duration: ${action.data.durationMinutes}min)`
-            );
-          }
+          finalCalories = serverCalories;
+          finalMetValue = serverMetValue;
+          console.log('📊 Using server-calculated calories:', finalCalories, '(MET:', finalMetValue, ')');
         }
 
-        // Always use the precise SERVER-SIDE calculation
-        await addExerciseEntry(
+        const exerciseSaveResult = await addExerciseEntry(
           userId,
           exerciseType,
           action.data.durationMinutes,
-          serverCalories,  // Use server calculation
-          serverMetValue   // Use server MET value
+          finalCalories,
+          finalMetValue
         );
-        console.log('✅ Saved exercise:', exerciseType, action.data.durationMinutes, 'min,', serverCalories, 'kcal');
-        // Invalidate cache after saving
+        if (!exerciseSaveResult.success) {
+          throw new Error(exerciseSaveResult.error || 'Failed to save exercise entry');
+        }
+        console.log('✅ Saved exercise:', exerciseType, action.data.durationMinutes, 'min,', finalCalories, 'kcal');
         invalidateTodayCache(userId);
         break;
 
@@ -1118,13 +1103,16 @@ async function executeAction(
             userWeightKg
           );
 
-          await addExerciseEntry(
+          const multiSaveResult = await addExerciseEntry(
             userId,
             normalizedType,
             entry.durationMinutes,
             entryCalories,
             entryMetValue
           );
+          if (!multiSaveResult.success) {
+            throw new Error(multiSaveResult.error || 'Failed to save exercise entry');
+          }
           console.log(`  ✅ Saved: ${normalizedType} ${entry.durationMinutes} min, ${entryCalories} kcal (MET ${entryMetValue})`);
         }
         console.log(`✅ Saved ${action.data.entries.length} exercise entries`);
@@ -1137,25 +1125,21 @@ async function executeAction(
           action.data.exerciseId,
           action.data.updates
         );
-        if (exerciseUpdateResult.success) {
-          console.log('✅ Exercise updated successfully');
-          // Invalidate cache after update
-          invalidateTodayCache(userId);
-        } else {
-          console.error('❌ Failed to update exercise:', exerciseUpdateResult.error);
+        if (!exerciseUpdateResult.success) {
+          throw new Error(exerciseUpdateResult.error || 'Failed to update exercise');
         }
+        console.log('✅ Exercise updated successfully');
+        invalidateTodayCache(userId);
         break;
 
       case 'delete_exercise':
         console.log('🗑️ Deleting exercise:', action.data.exerciseId);
         const deleteResult = await deleteExerciseEntry(action.data.exerciseId);
-        if (deleteResult.success) {
-          console.log('✅ Exercise deleted successfully');
-          // Invalidate cache after delete
-          invalidateTodayCache(userId);
-        } else {
-          console.error('❌ Failed to delete exercise:', deleteResult.error);
+        if (!deleteResult.success) {
+          throw new Error(deleteResult.error || 'Failed to delete exercise');
         }
+        console.log('✅ Exercise deleted successfully');
+        invalidateTodayCache(userId);
         break;
 
       case 'replace_exercise':
@@ -1191,13 +1175,11 @@ async function executeAction(
           userId,
           recalculatedEntries  // Use recalculated entries
         );
-        if (replaceResult.success) {
-          console.log('✅ Exercise replaced successfully with', recalculatedEntries.length, 'new entries');
-          // Invalidate cache after replace
-          invalidateTodayCache(userId);
-        } else {
-          console.error('❌ Failed to replace exercise:', replaceResult.error);
+        if (!replaceResult.success) {
+          throw new Error(replaceResult.error || 'Failed to replace exercise');
         }
+        console.log('✅ Exercise replaced successfully with', recalculatedEntries.length, 'new entries');
+        invalidateTodayCache(userId);
         break;
 
       case 'save_profile':

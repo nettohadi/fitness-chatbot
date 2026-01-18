@@ -21,32 +21,48 @@ USER CONTEXT:
 - Today burned so far: ${todayBurned} kcal
 
 YOUR TASK:
-1. Find the most recent exercise estimate in conversation history (look for MET calculation)
-2. Extract exercise type, duration, calories burned, and MET value
-3. If MULTIPLE INTENSITIES/MET values exist, create MULTIPLE entries
-4. Generate save action with success and failure messages
+1. Find the exercise details from conversation history
+2. Check if user EXPLICITLY provided calories burned (e.g., "lari 30 menit 300 kcal")
+3. If user provided calories, use their value and set userProvidedCalories: true
+4. If no user-provided calories, use the estimated value from previous message
+5. Generate save action with success and failure messages
 
 EXERCISE TRANSLATIONS (for successMessage - translate to user's language):
 cycling = bersepeda/sepeda, running = lari, walking = jalan kaki, swimming = renang, gym = gym
 
 CRITICAL RULES:
-1. Extract exercise details from the PREVIOUS assistant message (the estimate)
-2. Use ENGLISH exercise type in data object (cycling, running, walking, swimming, gym)
-3. TRANSLATE exercise type in successMessage to user's language
-4. Calculate new total (${todayBurned} + burned calories)
-5. Output RAW JSON only - NO markdown, NO \`\`\`json
-6. IMPORTANT: If exercise has DIFFERENT MET values/intensities, use "save_multiple_exercises" action
+1. If user provided calories explicitly: set "userProvidedCalories": true and use their value
+2. If calories were estimated by system: set "userProvidedCalories": false
+3. Use ENGLISH exercise type in data object (cycling, running, walking, swimming, gym)
+4. TRANSLATE exercise type in successMessage to user's language
+5. Calculate new total (${todayBurned} + burned calories)
+6. Output RAW JSON only - NO markdown, NO \`\`\`json
+7. IMPORTANT: If exercise has DIFFERENT MET values/intensities, use "save_multiple_exercises" action
 
-OUTPUT FORMAT - SINGLE EXERCISE (same intensity throughout):
+OUTPUT FORMAT - USER PROVIDED CALORIES:
+{
+  "action": "save_exercise",
+  "data": {
+    "exerciseType": "running",
+    "durationMinutes": 30,
+    "caloriesBurned": 300,
+    "userProvidedCalories": true
+  },
+  "successMessage": "✅ Saved!\\n🏃 30 min running\\n🔥 300 kcal burned\\n\\nToday total: ${todayBurned + 300} kcal",
+  "failureMessage": "❌ Failed to save. Please try again."
+}
+
+OUTPUT FORMAT - ESTIMATED CALORIES (single exercise):
 {
   "action": "save_exercise",
   "data": {
     "exerciseType": "cycling",
     "durationMinutes": 30,
     "caloriesBurned": 255,
-    "metValue": 6.8
+    "metValue": 6.8,
+    "userProvidedCalories": false
   },
-  "successMessage": "✅ Saved!\\n🚴 30 min cycling\\n🔥 255 kcal burned\\n\\nToday total: 455 kcal",
+  "successMessage": "✅ Saved!\\n🚴 30 min cycling\\n🔥 255 kcal burned\\n\\nToday total: ${todayBurned + 255} kcal",
   "failureMessage": "❌ Failed to save. Please try again."
 }
 
@@ -59,7 +75,7 @@ OUTPUT FORMAT - MULTIPLE INTENSITIES (different MET values):
       {"exerciseType": "cycling", "durationMinutes": 10, "caloriesBurned": 88, "metValue": 7.0}
     ]
   },
-  "successMessage": "✅ Saved 2 entries!\\n🚴 30 min level 6: 225 kcal\\n🚴 10 min level 7: 88 kcal\\nTotal: 313 kcal\\n\\nToday total: 513 kcal",
+  "successMessage": "✅ Saved 2 entries!\\n🚴 30 min level 6: 225 kcal\\n🚴 10 min level 7: 88 kcal\\nTotal: 313 kcal\\n\\nToday total: ${todayBurned + 313} kcal",
   "failureMessage": "❌ Failed to save. Please try again."
 }
 
@@ -70,9 +86,9 @@ WHEN TO USE MULTIPLE ENTRIES:
 
 EXAMPLES:
 
-Single intensity:
-{"action":"save_exercise","data":{"exerciseType":"cycling","durationMinutes":30,"caloriesBurned":225,"metValue":6.0},"successMessage":"✅ Tersimpan!\\n🚴 30 menit sepeda\\n🔥 225 kkal terbakar\\n\\nTotal hari ini: ${todayBurned + 225} kkal","failureMessage":"❌ Gagal menyimpan."}
+User provided calories ("lari 30 menit 300 kcal"):
+{"action":"save_exercise","data":{"exerciseType":"running","durationMinutes":30,"caloriesBurned":300,"userProvidedCalories":true},"successMessage":"✅ Tersimpan!\\n🏃 30 menit lari\\n🔥 300 kkal terbakar\\n\\nTotal hari ini: ${todayBurned + 300} kkal","failureMessage":"❌ Gagal menyimpan."}
 
-Multiple intensities (Level 6 + Level 7):
-{"action":"save_multiple_exercises","data":{"entries":[{"exerciseType":"cycling","durationMinutes":30,"caloriesBurned":225,"metValue":6.0},{"exerciseType":"cycling","durationMinutes":10,"caloriesBurned":88,"metValue":7.0}]},"successMessage":"✅ Tersimpan 2 entri!\\n🚴 30 menit level 6: 225 kkal\\n🚴 10 menit level 7: 88 kkal\\nTotal: 313 kkal\\n\\nTotal hari ini: ${todayBurned + 313} kkal","failureMessage":"❌ Gagal menyimpan."}`;
+Estimated calories (no user-provided value):
+{"action":"save_exercise","data":{"exerciseType":"cycling","durationMinutes":30,"caloriesBurned":225,"metValue":6.0,"userProvidedCalories":false},"successMessage":"✅ Tersimpan!\\n🚴 30 menit sepeda\\n🔥 225 kkal terbakar\\n\\nTotal hari ini: ${todayBurned + 225} kkal","failureMessage":"❌ Gagal menyimpan."}`;
 }
