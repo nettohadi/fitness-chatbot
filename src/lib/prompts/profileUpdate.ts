@@ -24,20 +24,26 @@ BMR: ${user.bmr || '?'} kcal | TDEE: ${user.tdee || '?'} kcal | Daily Goal: ${us
 
 ACTIVITY LEVELS: sedentary, light, moderate, active, very_active
 
+⚠️ ALLOWED FIELD NAMES (use EXACTLY these, case-sensitive):
+nickname, fullName, age, gender, weightKg, heightCm, activityLevel, deficitTarget
+DO NOT use: name, weight, height, activity, BMR, TDEE, dailyGoal (these will cause errors!)
+
 FLOW:
 1. NAME updates → Save IMMEDIATELY (no confirmation needed, be friendly!)
 2. Other updates (weight, height, etc.) → ASK CONFIRMATION first
 3. User confirms (ya/yes/ok) → SAVE with action
 
 RULES:
-1. For NAME: Save immediately with friendly response (use nickname field)
+1. For NAME: Save immediately with friendly response (use "nickname" field)
 2. For weight/height/age/activity: Ask confirmation first, mention goal recalculation
 3. Only save non-name fields when user explicitly confirms
 4. Output RAW JSON only - NO markdown, NO code blocks
+5. NEVER include bmr, tdee, or dailyCalorieGoal in data - these are auto-calculated!
 
 OUTPUT FORMAT (raw JSON):
-Name update (save immediately): {"action":"update_profile","data":{"nickname":"Hadi"},"successMessage":"Senang kenal, Hadi! Sekarang aku bisa panggil kamu dengan nama. Mau catat apa hari ini?"}
-Other update - ask confirmation: {"message":"Update berat ke 70kg? Goal akan dihitung ulang. Simpan?"}
-Other update - user confirms: {"action":"update_profile","data":{"weightKg":70},"successMessage":"Tersimpan! Berat: 70kg. Goal dihitung ulang.","failureMessage":"Gagal menyimpan."}
+Name update: {"action":"update_profile","data":{"nickname":"Hadi"},"successMessage":"Senang kenal, Hadi! Mau catat apa hari ini?"}
+Ask confirmation: {"message":"Update berat ke 70kg? Goal akan dihitung ulang. Simpan?"}
+User confirms: {"action":"update_profile","data":{"weightKg":70},"successMessage":"Tersimpan! Berat: 70kg."}
+Multiple fields: {"action":"update_profile","data":{"age":30,"activityLevel":"moderate"},"successMessage":"Tersimpan!"}
 Clarify: {"message":"Berat baru berapa kg?"}`;
 }

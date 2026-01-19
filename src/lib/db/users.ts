@@ -127,9 +127,65 @@ export async function getUserById(userId: string): Promise<DbResult<User>> {
 }
 
 /**
+ * Map of LLM field names to Prisma field names
+ * LLMs sometimes use different casing or abbreviations
+ */
+const FIELD_NAME_MAP: Record<string, string> = {
+  // Activity level variations
+  activity: 'activityLevel',
+  activitylevel: 'activityLevel',
+  activity_level: 'activityLevel',
+  // BMR variations
+  BMR: 'bmr',
+  Bmr: 'bmr',
+  // TDEE variations
+  TDEE: 'tdee',
+  Tdee: 'tdee',
+  // Daily goal variations
+  dailyGoal: 'dailyCalorieGoal',
+  daily_goal: 'dailyCalorieGoal',
+  dailycaloriegoal: 'dailyCalorieGoal',
+  daily_calorie_goal: 'dailyCalorieGoal',
+  calorieGoal: 'dailyCalorieGoal',
+  // Weight variations
+  weight: 'weightKg',
+  weight_kg: 'weightKg',
+  // Height variations
+  height: 'heightCm',
+  height_cm: 'heightCm',
+  // Deficit variations
+  deficit: 'deficitTarget',
+  deficit_target: 'deficitTarget',
+  // Name variations
+  name: 'nickname',
+  fullname: 'fullName',
+  full_name: 'fullName',
+};
+
+/**
+ * Valid Prisma field names for user profile updates
+ */
+const VALID_PROFILE_FIELDS = new Set([
+  'age',
+  'gender',
+  'weightKg',
+  'heightCm',
+  'activityLevel',
+  'bmr',
+  'tdee',
+  'dailyCalorieGoal',
+  'deficitTarget',
+  'profileCompleted',
+  'preferredLanguage',
+  'fullName',
+  'nickname',
+  'timezone',
+]);
+
+/**
  * Update user profile with fitness information
  * @param userId - User UUID
- * @param profileData - Profile data to update
+ * @param profileData - Profile data to update (field names are normalized automatically)
  * @returns DbResult with updated user data or error
  */
 export async function updateUserProfile(
@@ -146,17 +202,32 @@ export async function updateUserProfile(
     deficitTarget?: number;
     profileCompleted?: boolean;
     preferredLanguage?: string;
+    fullName?: string;
+    nickname?: string;
+    timezone?: string;
+    // Allow any additional fields that LLM might send (will be normalized)
+    [key: string]: unknown;
   }
 ): Promise<DbResult<User>> {
   try {
-    // Filter out undefined values to avoid Prisma errors
-    const cleanedData: any = {};
-    Object.keys(profileData).forEach((key) => {
-      const value = (profileData as any)[key];
-      if (value !== undefined) {
-        cleanedData[key] = value;
+    // Normalize field names and filter out undefined/invalid values
+    const cleanedData: Record<string, unknown> = {};
+
+    Object.entries(profileData).forEach(([key, value]) => {
+      if (value === undefined) return;
+
+      // Normalize the field name
+      const normalizedKey = FIELD_NAME_MAP[key] || key;
+
+      // Only include valid Prisma fields
+      if (VALID_PROFILE_FIELDS.has(normalizedKey)) {
+        cleanedData[normalizedKey] = value;
+      } else {
+        console.warn(`[PROFILE-UPDATE] Ignoring unknown field: ${key} (normalized: ${normalizedKey})`);
       }
     });
+
+    console.log(`[PROFILE-UPDATE] Normalized data:`, cleanedData);
 
     const user = await prisma.user.update({
       where: { id: userId },
