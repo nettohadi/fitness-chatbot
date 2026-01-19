@@ -31,7 +31,7 @@ function verifyToken(request: NextRequest): boolean {
 /**
  * GET /api/admin/debug
  * Query parameters:
- * - type: 'logs' | 'messages' | 'users' | 'full-log'
+ * - type: 'logs' | 'messages' | 'users' | 'full-log' | 'calories' | 'exercises'
  * - limit: number (default 10, max 50)
  * - userId: string (optional, filter by user)
  * - phone: string (optional, find user by phone)
@@ -187,9 +187,109 @@ export async function GET(request: NextRequest) {
         });
       }
 
+      case 'calories': {
+        // Get calorie entries with full date info for debugging timezone issues
+        const where: any = {};
+        if (userId) where.userId = userId;
+        if (dateFilter) where.createdAt = dateFilter;
+
+        // If phone provided, find user first
+        if (phone) {
+          const user = await prisma.user.findFirst({
+            where: { phoneNumber: { contains: phone } },
+            select: { id: true },
+          });
+          if (user) {
+            where.userId = user.id;
+          }
+        }
+
+        const entries = await prisma.calorieEntry.findMany({
+          where: Object.keys(where).length > 0 ? where : undefined,
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          select: {
+            id: true,
+            userId: true,
+            calories: true,
+            foodDescription: true,
+            entryDate: true,
+            entryTime: true,
+            createdAt: true,
+            estimatedByAi: true,
+          },
+        });
+
+        return NextResponse.json({
+          type: 'calories',
+          count: entries.length,
+          filters: { userId, phone, dateFilter: dateFilter ? { from: dateFilter.gte, to: dateFilter.lte } : null },
+          serverTime: {
+            utc: new Date().toISOString(),
+            utcDate: new Date().toISOString().split('T')[0],
+          },
+          data: entries.map((entry) => ({
+            ...entry,
+            // Format dates for easy reading
+            entryDateFormatted: entry.entryDate ? entry.entryDate.toISOString().split('T')[0] : null,
+            createdAtFormatted: entry.createdAt.toISOString(),
+          })),
+        });
+      }
+
+      case 'exercises': {
+        // Get exercise entries with full date info for debugging timezone issues
+        const where: any = {};
+        if (userId) where.userId = userId;
+        if (dateFilter) where.createdAt = dateFilter;
+
+        // If phone provided, find user first
+        if (phone) {
+          const user = await prisma.user.findFirst({
+            where: { phoneNumber: { contains: phone } },
+            select: { id: true },
+          });
+          if (user) {
+            where.userId = user.id;
+          }
+        }
+
+        const entries = await prisma.exerciseEntry.findMany({
+          where: Object.keys(where).length > 0 ? where : undefined,
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          select: {
+            id: true,
+            userId: true,
+            exerciseType: true,
+            durationMinutes: true,
+            caloriesBurned: true,
+            entryDate: true,
+            entryTime: true,
+            createdAt: true,
+          },
+        });
+
+        return NextResponse.json({
+          type: 'exercises',
+          count: entries.length,
+          filters: { userId, phone, dateFilter: dateFilter ? { from: dateFilter.gte, to: dateFilter.lte } : null },
+          serverTime: {
+            utc: new Date().toISOString(),
+            utcDate: new Date().toISOString().split('T')[0],
+          },
+          data: entries.map((entry) => ({
+            ...entry,
+            // Format dates for easy reading
+            entryDateFormatted: entry.entryDate ? entry.entryDate.toISOString().split('T')[0] : null,
+            createdAtFormatted: entry.createdAt.toISOString(),
+          })),
+        });
+      }
+
       default:
         return NextResponse.json(
-          { error: 'Invalid type. Use: logs, messages, users, or full-log' },
+          { error: 'Invalid type. Use: logs, messages, users, full-log, calories, or exercises' },
           { status: 400 }
         );
     }
