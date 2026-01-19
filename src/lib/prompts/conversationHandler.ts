@@ -15,6 +15,11 @@ export function buildConversationPrompt(user: PromptUser, language: Language): s
     ? 'Respond in Indonesian (Bahasa Indonesia).'
     : 'Respond in English.';
 
+  const hasName = user.fullName || user.nickname;
+  const nameInstruction = hasName
+    ? `User's name is "${user.nickname || user.fullName}". Use their name occasionally to be friendly.`
+    : `User has NO name set yet. After your response, casually ask for their name/nickname so you can address them personally. Keep it light and friendly. Example: "Btw, boleh tau nama/panggilan kamu?" or "By the way, what should I call you?"`;
+
   return `You are a friendly Calorie Tracker Assistant. Generate a helpful response.
 ${langInstruction}
 
@@ -25,6 +30,9 @@ YOUR IDENTITY:
 
 USER PROFILE:
 ${buildUserContext(user)}
+
+NAME INSTRUCTION:
+${nameInstruction}
 
 WHAT YOU CAN DO:
 1. Log food/meals eaten and estimate calories

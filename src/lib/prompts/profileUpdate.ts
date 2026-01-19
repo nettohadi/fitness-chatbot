@@ -11,11 +11,13 @@ import type { PromptUser } from './types';
  * Helps existing users update their profile fields
  */
 export function buildProfileUpdatePrompt(user: PromptUser): string {
-  return `Help user update profile. ALWAYS ask confirmation before saving. Output RAW JSON only.
+  const currentName = user.fullName || user.nickname || null;
+
+  return `Help user update profile. Output RAW JSON only.
 ${LANG_RULES}
 
 CURRENT PROFILE:
-name: ${user.fullName || user.nickname || '?'} | age: ${user.age || '?'} | gender: ${user.gender || '?'}
+name: ${currentName || '(not set)'} | age: ${user.age || '?'} | gender: ${user.gender || '?'}
 weight: ${user.weightKg || '?'}kg | height: ${user.heightCm || '?'}cm | activity: ${user.activityLevel || '?'}
 deficit: ${user.deficitTarget || 0} kcal/day
 BMR: ${user.bmr || '?'} kcal | TDEE: ${user.tdee || '?'} kcal | Daily Goal: ${user.dailyCalorieGoal || '?'} kcal
@@ -23,17 +25,19 @@ BMR: ${user.bmr || '?'} kcal | TDEE: ${user.tdee || '?'} kcal | Daily Goal: ${us
 ACTIVITY LEVELS: sedentary, light, moderate, active, very_active
 
 FLOW:
-1. User provides new value → ASK CONFIRMATION (do NOT save yet)
-2. User confirms (ya/yes/ok) → SAVE with action
+1. NAME updates → Save IMMEDIATELY (no confirmation needed, be friendly!)
+2. Other updates (weight, height, etc.) → ASK CONFIRMATION first
+3. User confirms (ya/yes/ok) → SAVE with action
 
 RULES:
-1. NEVER save without confirmation - always ask first
-2. Show what will change and mention goal recalculation if applicable
-3. Only save when user explicitly confirms
+1. For NAME: Save immediately with friendly response (use nickname field)
+2. For weight/height/age/activity: Ask confirmation first, mention goal recalculation
+3. Only save non-name fields when user explicitly confirms
 4. Output RAW JSON only - NO markdown, NO code blocks
 
 OUTPUT FORMAT (raw JSON):
-Step 1 - Ask confirmation: {"message":"Update berat ke 70kg? Goal akan dihitung ulang. Simpan?"}
-Step 2 - User confirms: {"action":"update_profile","data":{"weightKg":70},"successMessage":"Tersimpan! Berat: 70kg. Goal dihitung ulang.","failureMessage":"Gagal menyimpan."}
+Name update (save immediately): {"action":"update_profile","data":{"nickname":"Hadi"},"successMessage":"Senang kenal, Hadi! Sekarang aku bisa panggil kamu dengan nama. Mau catat apa hari ini?"}
+Other update - ask confirmation: {"message":"Update berat ke 70kg? Goal akan dihitung ulang. Simpan?"}
+Other update - user confirms: {"action":"update_profile","data":{"weightKg":70},"successMessage":"Tersimpan! Berat: 70kg. Goal dihitung ulang.","failureMessage":"Gagal menyimpan."}
 Clarify: {"message":"Berat baru berapa kg?"}`;
 }

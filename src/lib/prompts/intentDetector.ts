@@ -92,6 +92,7 @@ Period extraction:
 PROFILE UPDATE (must have NEW VALUE):
 - profile_update = User provides NEW VALUE to update
   Examples: "berat saya 70kg", "update tinggi 175cm", "ubah target 1500 cal"
+  Name updates: "nama saya Hadi", "panggil saya Adi", "call me John", "my name is Sarah"
 - If user ASKS about profile without new value → conversation (see below)
 
 CONVERSATION (use for all of these):
@@ -139,6 +140,9 @@ EXAMPLES:
 "ringkasan minggu ini" → {"intent":"summary","period":"week","language":"id"}
 "tanggal 10 januari" → {"intent":"summary","period":"specific","date":"2026-01-10","language":"id"}
 "berat saya 70kg" → {"intent":"profile_update","language":"id"}
+"nama saya Hadi" → {"intent":"profile_update","language":"id"}
+"panggil saya Adi" → {"intent":"profile_update","language":"id"}
+"call me John" → {"intent":"profile_update","language":"en"}
 "ya" (after profile update question) → {"intent":"profile_update","language":"id"}
 "tidak" (after any save question) → {"intent":"conversation","language":"id"}
 "no" (after any save question) → {"intent":"conversation","language":"en"}
