@@ -12,7 +12,7 @@ export const LANG_RULES = `LANGUAGE: Reply in user's language. Match their style
 
 /**
  * Build minimal user context string for prompts
- * Format: "Name: X | Weight: Xkg | Goal: X cal/day"
+ * Format: "Name: X | Weight: Xkg | Goal: X cal/day | BMR: X | TDEE: X"
  */
 export function buildUserContext(user: PromptUser): string {
   const parts: string[] = [];
@@ -26,7 +26,19 @@ export function buildUserContext(user: PromptUser): string {
   }
 
   if (user.dailyCalorieGoal) {
-    parts.push(`Goal: ${Math.round(user.dailyCalorieGoal)}cal/day`);
+    parts.push(`Goal: ${Math.round(user.dailyCalorieGoal)}kcal/day`);
+  }
+
+  if (user.bmr) {
+    parts.push(`BMR: ${Math.round(user.bmr)}kcal`);
+  }
+
+  if (user.tdee) {
+    parts.push(`TDEE: ${Math.round(user.tdee)}kcal`);
+  }
+
+  if (user.deficitTarget) {
+    parts.push(`Deficit: ${user.deficitTarget}kcal/day`);
   }
 
   return parts.join(' | ') || 'New user';

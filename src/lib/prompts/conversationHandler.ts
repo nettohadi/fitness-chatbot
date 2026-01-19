@@ -31,6 +31,8 @@ YOUR IDENTITY:
 USER PROFILE:
 ${buildUserContext(user)}
 
+IMPORTANT: When user asks about BMR, TDEE, or goal - use the EXACT values above from their profile. Do NOT recalculate!
+
 NAME INSTRUCTION:
 ${nameInstruction}
 
