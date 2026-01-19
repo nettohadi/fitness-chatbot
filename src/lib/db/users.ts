@@ -27,17 +27,27 @@ export async function findUserByPhone(
 /**
  * Create a new user
  * @param phoneNumber - Phone number in E.164 format
+ * @param timezone - Optional timezone (IANA format, e.g., 'Asia/Jakarta')
+ * @param preferredLanguage - Optional preferred language code
  * @returns DbResult with created user data or error
  */
 export async function createUser(
-  phoneNumber: string
+  phoneNumber: string,
+  timezone?: string,
+  preferredLanguage?: string
 ): Promise<DbResult<User>> {
   try {
     console.log('🔄 Attempting to create user with phone:', phoneNumber);
     console.log('🔌 DATABASE_URL configured:', process.env.DATABASE_URL ? 'YES' : 'NO');
+    console.log('🌍 Timezone:', timezone || 'not provided');
+    console.log('🗣️ Language:', preferredLanguage || 'not provided');
 
     const user = await prisma.user.create({
-      data: { phoneNumber },
+      data: {
+        phoneNumber,
+        ...(timezone && { timezone }),
+        ...(preferredLanguage && { preferredLanguage }),
+      },
     });
 
     console.log('✅ User created successfully:', user.id);
@@ -55,10 +65,14 @@ export async function createUser(
 /**
  * Find or create a user by phone number
  * @param phoneNumber - Phone number in E.164 format
+ * @param timezone - Optional timezone for new users (IANA format)
+ * @param preferredLanguage - Optional preferred language code for new users
  * @returns DbResult with user data or error
  */
 export async function findOrCreateUser(
-  phoneNumber: string
+  phoneNumber: string,
+  timezone?: string,
+  preferredLanguage?: string
 ): Promise<DbResult<User>> {
   try {
     // Try to find existing user
@@ -73,8 +87,8 @@ export async function findOrCreateUser(
       return findResult;
     }
 
-    // User doesn't exist, create a new one
-    return await createUser(phoneNumber);
+    // User doesn't exist, create a new one with timezone and language
+    return await createUser(phoneNumber, timezone, preferredLanguage);
   } catch (error) {
     console.error('Error in findOrCreateUser:', error);
     return {

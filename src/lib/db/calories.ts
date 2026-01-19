@@ -1,5 +1,6 @@
 import prisma from '../prisma';
 import type { CalorieEntry, DbResult, CalorieSummary } from '@/types';
+import { getLocalTodayAsDate as getLocalTodayAsDateUtil, getUserTimezone } from '@/lib/utils/timezone';
 
 /**
  * Add a new calorie entry
@@ -7,21 +8,30 @@ import type { CalorieEntry, DbResult, CalorieSummary } from '@/types';
  * @param calories - Calorie amount
  * @param foodDescription - Description of the food (optional)
  * @param estimatedByAi - Whether calories were estimated by AI
+ * @param userTimezone - User's timezone (IANA format, e.g., 'Asia/Jakarta')
  * @returns DbResult with created calorie entry or error
  */
 export async function addCalorieEntry(
   userId: string,
   calories: number,
   foodDescription: string | null = null,
-  estimatedByAi: boolean = false
+  estimatedByAi: boolean = false,
+  userTimezone?: string | null
 ): Promise<DbResult<CalorieEntry>> {
   try {
+    // Get the user's local date for entry storage
+    const timezone = userTimezone || getUserTimezone();
+    const entryDate = getLocalTodayAsDateUtil(timezone);
+
+    console.log(`[CALORIE] Adding entry for user ${userId} with timezone ${timezone}, entryDate: ${entryDate.toISOString()}`);
+
     const entry = await prisma.calorieEntry.create({
       data: {
         userId,
         calories,
         foodDescription,
         estimatedByAi,
+        entryDate,
       },
     });
 
@@ -36,56 +46,36 @@ export async function addCalorieEntry(
 }
 
 /**
- * Get timezone offset in hours for a given timezone
- * @param timezone - IANA timezone string (e.g., "Asia/Jakarta")
- * @returns Offset in hours (e.g., +7 for Asia/Jakarta)
- */
-function getTimezoneOffsetHours(timezone: string): number {
-  const now = new Date();
-  const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
-  const tzDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-  return (tzDate.getTime() - utcDate.getTime()) / (1000 * 60 * 60);
-}
-
-/**
  * Get calorie entries for a specific date
  * @param userId - User UUID
  * @param date - Date in YYYY-MM-DD format (in user's timezone)
- * @param userTimezone - User's timezone (defaults to Asia/Jakarta)
  * @returns DbResult with array of calorie entries or error
+ *
+ * NOTE: entryDate is stored as DATE (no time) in the database with CURRENT_DATE default.
+ * Since entries are created with the server's date (which uses APP_TIMEZONE via getTodayDate),
+ * we just need to match the exact date string without timezone conversion.
  */
 export async function getEntriesByDate(
   userId: string,
-  date: string,
-  userTimezone?: string | null
+  date: string
 ): Promise<DbResult<CalorieEntry[]>> {
   try {
-    const timezone = userTimezone || process.env.APP_TIMEZONE || 'Asia/Jakarta';
+    // Parse the date and create start/end of that specific calendar date
+    // Since entryDate is a DATE field (no time), we compare against the full day
     const [year, month, day] = date.split('-').map(Number);
+    const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
-    // Get timezone offset and calculate UTC boundaries for the user's local day
-    // For example, if timezone is GMT+8 (Asia/Jakarta is GMT+7):
-    // - "2026-01-19" local midnight = "2026-01-18T17:00:00Z" (for GMT+7)
-    // - "2026-01-19" local 23:59:59 = "2026-01-19T16:59:59Z" (for GMT+7)
-    const offsetHours = getTimezoneOffsetHours(timezone);
-
-    // Create local midnight in the user's timezone, then convert to UTC
-    const startOfDayLocal = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-    startOfDayLocal.setUTCHours(startOfDayLocal.getUTCHours() - offsetHours);
-
-    const endOfDayLocal = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-    endOfDayLocal.setUTCHours(endOfDayLocal.getUTCHours() - offsetHours);
-
-    console.log(`[DATE DEBUG] Querying date: ${date} (timezone: ${timezone}, offset: UTC${offsetHours >= 0 ? '+' : ''}${offsetHours})`);
-    console.log(`[DATE DEBUG] startOfDay UTC: ${startOfDayLocal.toISOString()}`);
-    console.log(`[DATE DEBUG] endOfDay UTC: ${endOfDayLocal.toISOString()}`);
+    console.log(`[DATE DEBUG] Querying date: ${date}`);
+    console.log(`[DATE DEBUG] startOfDay: ${startOfDay.toISOString()}`);
+    console.log(`[DATE DEBUG] endOfDay: ${endOfDay.toISOString()}`);
 
     const entries = await prisma.calorieEntry.findMany({
       where: {
         userId,
         entryDate: {
-          gte: startOfDayLocal,
-          lte: endOfDayLocal,
+          gte: startOfDay,
+          lte: endOfDay,
         },
       },
       orderBy: {

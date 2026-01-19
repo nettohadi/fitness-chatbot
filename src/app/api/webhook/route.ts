@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendTelegramMessage, sendChatAction, formatForMarkdownV2 } from '@/lib/telegram';
 import { findOrCreateUser, updateFitnessProfile, updateUserProfile } from '@/lib/db/users';
+import { inferTimezoneFromLanguage, getUserTimezone } from '@/lib/utils/timezone';
 import {
   addCalorieEntry,
   updateCalorieEntry,
@@ -449,6 +450,7 @@ interface TelegramUpdate {
       first_name: string;
       last_name?: string;
       username?: string;
+      language_code?: string; // User's language code (e.g., 'en', 'id', 'ru')
     };
     chat: {
       id: number;
@@ -521,18 +523,24 @@ export async function POST(request: NextRequest) {
 
     const chatId = update.message.chat.id;
     const messageText = update.message.text.trim();
+    const languageCode = update.message.from?.language_code;
 
     // Use chat ID as identifier
     const userIdentifier = chatId.toString();
 
-    // Find or create user
-    const userResult = await findOrCreateUser(userIdentifier);
+    // Infer timezone from language code for new users
+    const inferredTimezone = inferTimezoneFromLanguage(languageCode);
+
+    // Find or create user (pass timezone and language for new user creation)
+    const userResult = await findOrCreateUser(userIdentifier, inferredTimezone, languageCode);
     if (!userResult.success || !userResult.data) {
       await sendTelegramMessage(chatId, generateErrorMessage('Failed to create user account'));
       return NextResponse.json({ ok: true });
     }
 
     const user = userResult.data;
+    // Get user's timezone (from DB if set, otherwise use inferred)
+    const userTimezone = getUserTimezone(user);
 
     // Track processing time for debugging
     const processingStartTime = Date.now();
@@ -568,7 +576,7 @@ export async function POST(request: NextRequest) {
         // Execute action if present
         if (result.action) {
           try {
-            await executeAction(result.action, user.id, user, conversationHistory);
+            await executeAction(result.action, user.id, user, conversationHistory, userTimezone);
             // Use successMessage if available (from food_logging/exercise_logging)
             if (result.action.successMessage) {
               responseMessage = result.action.successMessage;
@@ -625,7 +633,7 @@ export async function POST(request: NextRequest) {
         console.log('[OPTIMIZATION] Executing context action:', contextAction.type);
         console.log('[OPTIMIZATION] Skipping DB queries - using cached context');
 
-        let responseText = await executeAction(contextAction, user.id, user, conversationHistory);
+        let responseText = await executeAction(contextAction, user.id, user, conversationHistory, userTimezone);
 
         // Clean response to ensure no JSON leaks
         responseText = cleanResponseForUser(responseText || 'Done!');
@@ -658,7 +666,7 @@ export async function POST(request: NextRequest) {
       const parsedAction = parseStructuredAction(response);
 
       if (parsedAction && parsedAction.type !== 'none') {
-        await executeAction(parsedAction, user.id, user, conversationHistory);
+        await executeAction(parsedAction, user.id, user, conversationHistory, userTimezone);
         let responseText = parsedAction.userMessage || response;
 
         // Clean response to ensure no JSON leaks
@@ -751,7 +759,7 @@ export async function POST(request: NextRequest) {
 
       if (structuredAction) {
         // Execute structured action (including save_profile from Claude)
-        const actionResult = await executeAction(structuredAction, user.id, user, conversationHistory);
+        const actionResult = await executeAction(structuredAction, user.id, user, conversationHistory, userTimezone);
 
         // If action returned a summary (for historical queries), use it
         // Otherwise use the userMessage from Claude
@@ -766,7 +774,7 @@ export async function POST(request: NextRequest) {
 
         if (contextAction.type !== 'none') {
           // Execute the confirmed action
-          await executeAction(contextAction, user.id, user, conversationHistory);
+          await executeAction(contextAction, user.id, user, conversationHistory, userTimezone);
         }
 
         responseMessage = claudeResponse;
@@ -984,7 +992,8 @@ async function executeAction(
   action: any,
   userId: string,
   user?: any,
-  conversationContext?: any[]
+  conversationContext?: any[],
+  userTimezone?: string
 ): Promise<string | void> {
   try {
     switch (action.type) {
@@ -998,7 +1007,8 @@ async function executeAction(
               userId,
               item.calories,
               item.foodDescription,
-              item.estimatedByAi || false
+              item.estimatedByAi || false,
+              userTimezone
             );
             if (!saveResult.success) {
               throw new Error(saveResult.error || 'Failed to save calorie entry');
@@ -1011,7 +1021,8 @@ async function executeAction(
             userId,
             action.data.calories,
             action.data.foodDescription,
-            action.data.estimatedByAi || false
+            action.data.estimatedByAi || false,
+            userTimezone
           );
           if (!saveResult.success) {
             throw new Error(saveResult.error || 'Failed to save calorie entry');
@@ -1083,7 +1094,8 @@ async function executeAction(
           exerciseType,
           action.data.durationMinutes,
           finalCalories,
-          finalMetValue
+          finalMetValue,
+          userTimezone
         );
         if (!exerciseSaveResult.success) {
           throw new Error(exerciseSaveResult.error || 'Failed to save exercise entry');
@@ -1111,7 +1123,8 @@ async function executeAction(
             normalizedType,
             entry.durationMinutes,
             entryCalories,
-            entryMetValue
+            entryMetValue,
+            userTimezone
           );
           if (!multiSaveResult.success) {
             throw new Error(multiSaveResult.error || 'Failed to save exercise entry');

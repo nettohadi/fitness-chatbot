@@ -18,6 +18,7 @@ export interface User {
   deficitTarget: { toNumber: () => number } | null;
   profileCompleted: boolean;
   preferredLanguage: string | null;
+  timezone: string | null;
 }
 
 export interface CalorieEntry {

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { DbResult } from '@/types';
 import type { ExerciseEntry } from '@prisma/client';
+import { getLocalTodayAsDate as getLocalTodayAsDateUtil, getUserTimezone, getLocalTodayString } from '@/lib/utils/timezone';
 
 /**
  * Add an exercise entry to the database
@@ -10,6 +11,7 @@ import type { ExerciseEntry } from '@prisma/client';
  * @param durationMinutes - Duration in minutes
  * @param caloriesBurned - Calories burned
  * @param metValue - MET value used for calculation (optional)
+ * @param userTimezone - User's timezone (IANA format, e.g., 'Asia/Jakarta')
  * @returns Database operation result
  */
 export async function addExerciseEntry(
@@ -17,9 +19,16 @@ export async function addExerciseEntry(
   exerciseType: string,
   durationMinutes: number,
   caloriesBurned: number,
-  metValue?: number
+  metValue?: number,
+  userTimezone?: string | null
 ): Promise<DbResult<ExerciseEntry>> {
   try {
+    // Get the user's local date for entry storage
+    const timezone = userTimezone || getUserTimezone();
+    const entryDate = getLocalTodayAsDateUtil(timezone);
+
+    console.log(`[EXERCISE] Adding entry for user ${userId} with timezone ${timezone}, entryDate: ${entryDate.toISOString()}`);
+
     const entry = await prisma.exerciseEntry.create({
       data: {
         userId,
@@ -27,6 +36,7 @@ export async function addExerciseEntry(
         durationMinutes,
         caloriesBurned,
         metValue,
+        entryDate,
       },
     });
 
@@ -46,29 +56,8 @@ export async function addExerciseEntry(
  * @returns Today's date string
  */
 function getExerciseTodayDate(userTimezone?: string | null): string {
-  const timezone = userTimezone || process.env.APP_TIMEZONE || 'Asia/Jakarta';
-  const now = new Date();
-
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-
-  return formatter.format(now);
-}
-
-/**
- * Get timezone offset in hours for a given timezone
- * @param timezone - IANA timezone string (e.g., "Asia/Jakarta")
- * @returns Offset in hours (e.g., +7 for Asia/Jakarta)
- */
-function getTimezoneOffsetHours(timezone: string): number {
-  const now = new Date();
-  const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
-  const tzDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
-  return (tzDate.getTime() - utcDate.getTime()) / (1000 * 60 * 60);
+  const timezone = userTimezone || getUserTimezone();
+  return getLocalTodayString(timezone);
 }
 
 /**
@@ -83,26 +72,19 @@ export async function getTodayExerciseCalories(
   userTimezone?: string | null
 ): Promise<DbResult<number>> {
   try {
-    const timezone = userTimezone || process.env.APP_TIMEZONE || 'Asia/Jakarta';
     const today = getExerciseTodayDate(userTimezone);
 
-    // Parse the date string and create start/end of day in user's local timezone
+    // Parse the date string and create date range for that calendar day
     const [year, month, day] = today.split('-').map(Number);
-    const offsetHours = getTimezoneOffsetHours(timezone);
-
-    // Create local midnight in the user's timezone, then convert to UTC
-    const startOfDayLocal = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-    startOfDayLocal.setUTCHours(startOfDayLocal.getUTCHours() - offsetHours);
-
-    const endOfDayLocal = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-    endOfDayLocal.setUTCHours(endOfDayLocal.getUTCHours() - offsetHours);
+    const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
     const result = await prisma.exerciseEntry.aggregate({
       where: {
         userId,
         entryDate: {
-          gte: startOfDayLocal,
-          lte: endOfDayLocal,
+          gte: startOfDay,
+          lte: endOfDay,
         },
       },
       _sum: {
@@ -135,30 +117,23 @@ export async function getTodayExercises(
   userTimezone?: string | null
 ): Promise<DbResult<ExerciseEntry[]>> {
   try {
-    const timezone = userTimezone || process.env.APP_TIMEZONE || 'Asia/Jakarta';
     const today = getExerciseTodayDate(userTimezone);
 
-    // Parse the date string and create start/end of day in user's local timezone
+    // Parse the date string and create date range for that calendar day
     const [year, month, day] = today.split('-').map(Number);
-    const offsetHours = getTimezoneOffsetHours(timezone);
+    const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
-    // Create local midnight in the user's timezone, then convert to UTC
-    const startOfDayLocal = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-    startOfDayLocal.setUTCHours(startOfDayLocal.getUTCHours() - offsetHours);
-
-    const endOfDayLocal = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-    endOfDayLocal.setUTCHours(endOfDayLocal.getUTCHours() - offsetHours);
-
-    console.log(`[EXERCISE DATE DEBUG] Querying date: ${today} (timezone: ${timezone}, offset: UTC${offsetHours >= 0 ? '+' : ''}${offsetHours})`);
-    console.log(`[EXERCISE DATE DEBUG] startOfDay UTC: ${startOfDayLocal.toISOString()}`);
-    console.log(`[EXERCISE DATE DEBUG] endOfDay UTC: ${endOfDayLocal.toISOString()}`);
+    console.log(`[EXERCISE DATE DEBUG] Querying date: ${today}`);
+    console.log(`[EXERCISE DATE DEBUG] startOfDay: ${startOfDay.toISOString()}`);
+    console.log(`[EXERCISE DATE DEBUG] endOfDay: ${endOfDay.toISOString()}`);
 
     const exercises = await prisma.exerciseEntry.findMany({
       where: {
         userId,
         entryDate: {
-          gte: startOfDayLocal,
-          lte: endOfDayLocal,
+          gte: startOfDay,
+          lte: endOfDay,
         },
       },
       orderBy: {
