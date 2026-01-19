@@ -1240,7 +1240,41 @@ async function executeAction(
       case 'update_profile':
         console.log('📝 Updating user profile with data:', JSON.stringify(action.data, null, 2));
 
-        // Use updateUserProfile to update only the specified fields
+        // Check if we need to recalculate BMR/TDEE (if weight, height, age, gender, or activity changed)
+        const needsRecalc = action.data.weightKg || action.data.heightCm || action.data.age || action.data.gender || action.data.activityLevel;
+
+        if (needsRecalc && user) {
+          // Get current values, override with new values
+          const age = action.data.age || user.age;
+          const gender = action.data.gender || user.gender;
+          const weightKg = action.data.weightKg || (user.weightKg?.toNumber?.() || user.weightKg);
+          const heightCm = action.data.heightCm || (user.heightCm?.toNumber?.() || user.heightCm);
+          const activityLevel = action.data.activityLevel || user.activityLevel;
+          const deficitTarget = action.data.deficitTarget ?? (user.deficitTarget?.toNumber?.() || user.deficitTarget) ?? 500;
+
+          // Recalculate if we have all required fields
+          if (age && gender && weightKg && heightCm && activityLevel) {
+            const { calculateFitnessMetrics } = await import('@/lib/services/bmrCalculator');
+            const normalizedGender = gender.toLowerCase().includes('pria') || gender.toLowerCase() === 'male' ? 'male' : 'female';
+            const metrics = calculateFitnessMetrics(
+              age,
+              normalizedGender,
+              weightKg,
+              heightCm,
+              activityLevel as any,
+              'deficit'
+            );
+
+            // Add recalculated values to update data
+            action.data.bmr = metrics.bmr;
+            action.data.tdee = metrics.tdee;
+            action.data.dailyCalorieGoal = metrics.tdee - deficitTarget;
+
+            console.log('📊 Recalculated metrics:', { bmr: metrics.bmr, tdee: metrics.tdee, dailyGoal: action.data.dailyCalorieGoal });
+          }
+        }
+
+        // Use updateUserProfile to update the specified fields
         const profileUpdateResult = await updateUserProfile(userId, action.data);
 
         console.log('💾 Profile update result:', profileUpdateResult.success ? '✅ Success' : '❌ Failed');

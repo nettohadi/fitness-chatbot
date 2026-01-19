@@ -65,9 +65,13 @@ EXERCISE:
 
 CONFIRMATION DETECTION (check previous assistant message):
 If previous message asked "Simpan?" OR "Save?" OR "Mau saya catat?":
-  Confirmation words: yes/ya/iya/yup/ok/oke/simpan/catat/save/lanjut/gas/betul/sip/boleh
+  YES words: yes/ya/iya/yup/ok/oke/simpan/catat/save/lanjut/gas/betul/sip/boleh
   - If about FOOD → food_logging
   - If about EXERCISE → exercise_logging
+  - If about PROFILE (weight/height/age/goal) → profile_update
+
+  NO words: tidak/no/nope/cancel/batal/jangan/gak/nggak/enggak
+  - Always → conversation (user declined, no action needed)
 
 PERIOD EXTRACTION FOR UPDATE INTENTS:
 For food_update and exercise_update, also extract period:
@@ -85,12 +89,14 @@ Period extraction:
 - "tanggal 15", "Jan 10", specific date → "period":"specific","date":"YYYY-MM-DD"
 - No period mentioned → "period":"today"
 
-PROFILE UPDATE DETECTION:
-Keywords: weight/berat, height/tinggi, age/umur, goal/target, activity/aktivitas, TDEE, BMR
-Examples: "berat saya 70kg", "update tinggi 175cm", "ubah target 1500 cal"
+PROFILE UPDATE (must have NEW VALUE):
+- profile_update = User provides NEW VALUE to update
+  Examples: "berat saya 70kg", "update tinggi 175cm", "ubah target 1500 cal"
+- If user ASKS about profile without new value → conversation (see below)
 
 CONVERSATION (use for all of these):
 - Greetings: hi, hello, halo, hai, selamat pagi/siang/malam
+- Profile QUESTIONS (no new value): "berapa BMR saya?", "apa TDEE saya?", "what's my goal?"
 - INCOMPLETE food info: no quantity/portion mentioned
 - INCOMPLETE exercise info: no duration mentioned
 - Clarification needed: ambiguous or unclear requests
@@ -133,6 +139,13 @@ EXAMPLES:
 "ringkasan minggu ini" → {"intent":"summary","period":"week","language":"id"}
 "tanggal 10 januari" → {"intent":"summary","period":"specific","date":"2026-01-10","language":"id"}
 "berat saya 70kg" → {"intent":"profile_update","language":"id"}
+"ya" (after profile update question) → {"intent":"profile_update","language":"id"}
+"tidak" (after any save question) → {"intent":"conversation","language":"id"}
+"no" (after any save question) → {"intent":"conversation","language":"en"}
+"berapa BMR saya?" → {"intent":"conversation","language":"id"}
+"apa TDEE saya?" → {"intent":"conversation","language":"id"}
+"what's my calorie goal?" → {"intent":"conversation","language":"en"}
+"kamu tahu berat saya?" → {"intent":"conversation","language":"id"}
 "halo" → {"intent":"conversation","language":"id"}
 "hello" → {"intent":"conversation","language":"en"}`;
 }
