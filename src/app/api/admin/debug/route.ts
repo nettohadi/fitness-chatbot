@@ -149,14 +149,7 @@ export async function GET(request: NextRequest) {
           where,
           orderBy: { createdAt: 'desc' },
           take: limit,
-          select: {
-            id: true,
-            phoneNumber: true,
-            fullName: true,
-            nickname: true,
-            profileCompleted: true,
-            createdAt: true,
-          },
+          // Include all fields
         });
 
         return NextResponse.json({
