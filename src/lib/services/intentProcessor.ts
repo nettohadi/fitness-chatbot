@@ -102,6 +102,54 @@ async function callLLM(
 }
 
 /**
+ * Call LLM expecting JSON output with automatic retry on parse failure
+ * Retries once with stricter instructions and zero temperature if first attempt fails
+ */
+async function callLLMForJSON<T>(
+  systemPrompt: string,
+  userMessage: string,
+  history: CachedMessage[],
+  userId: string,
+  maxTokens: number = 512,
+  temperature: number = 0.3,
+  validator?: (result: T) => boolean
+): Promise<{ result: T | null; rawResponse: string }> {
+  // First attempt
+  const response = await callLLM(systemPrompt, userMessage, history, userId, maxTokens, temperature);
+  let result = parseJSON<T>(response);
+
+  // Check if result is valid (basic check or custom validator)
+  const isValid = result !== null && (validator ? validator(result) : true);
+
+  if (isValid) {
+    return { result, rawResponse: response };
+  }
+
+  // Retry with stricter instructions
+  console.warn('[LLM-JSON] First attempt failed, retrying with stricter prompt...');
+  console.warn('[LLM-JSON] Failed response:', response.substring(0, 150));
+
+  const retryPrompt = systemPrompt + `
+
+⚠️ RETRY - YOUR PREVIOUS RESPONSE WAS INVALID
+You MUST output ONLY a valid JSON object. No text, no explanation.
+Start your response with { and end with }`;
+
+  const retryResponse = await callLLM(retryPrompt, userMessage, history, userId, maxTokens, 0);
+  result = parseJSON<T>(retryResponse);
+
+  if (result !== null && (validator ? validator(result) : true)) {
+    console.log('[LLM-JSON] Retry succeeded');
+    return { result, rawResponse: retryResponse };
+  }
+
+  console.error('[LLM-JSON] Retry also failed, returning null');
+  console.error('[LLM-JSON] Retry response:', retryResponse.substring(0, 150));
+
+  return { result: null, rawResponse: retryResponse };
+}
+
+/**
  * Parse JSON from LLM response
  * Handles: markdown code blocks, raw JSON, JSON with surrounding text
  */
@@ -221,11 +269,20 @@ export async function detectIntent(
 ): Promise<IntentResult> {
   const systemPrompt = buildIntentDetectorPrompt();
 
-  const response = await callLLM(systemPrompt, message, history, user.id, 256);
-  const result = parseJSON<IntentResult>(response);
+  // Use callLLMForJSON with retry for reliable JSON output
+  const { result } = await callLLMForJSON<IntentResult>(
+    systemPrompt,
+    message,
+    history,
+    user.id,
+    256,
+    0.1,
+    // Validator: must have intent field
+    (r) => !!r.intent
+  );
 
-  if (!result || !result.intent) {
-    // Default to conversation if parsing fails
+  if (!result) {
+    // Default to conversation if parsing fails after retry
     return { intent: 'conversation', language: 'id' };
   }
 
@@ -373,14 +430,24 @@ export async function processFoodLogging(
   todayCalories: number
 ): Promise<FoodLoggingResult | { message: string }> {
   const systemPrompt = buildFoodLoggerPrompt(user, todayCalories);
-  const response = await callLLM(systemPrompt, message, history, user.id, 512);
-  const result = parseJSON<FoodLoggingResult>(response);
 
-  if (result && result.action === 'save_calories' && result.data?.items) {
+  // Use callLLMForJSON with retry for reliable JSON output
+  const { result, rawResponse } = await callLLMForJSON<FoodLoggingResult>(
+    systemPrompt,
+    message,
+    history,
+    user.id,
+    512,
+    0.3,
+    // Validator: must have action and items
+    (r) => r.action === 'save_calories' && Array.isArray(r.data?.items) && r.data.items.length > 0
+  );
+
+  if (result) {
     return result;
   }
 
-  return { message: response };
+  return { message: rawResponse };
 }
 
 /**
@@ -395,10 +462,20 @@ export async function processFoodUpdate(
   periodLabel: string = 'hari ini'
 ): Promise<{ action?: string; data?: any; message: string }> {
   const systemPrompt = buildFoodUpdatePrompt(user, foodEntries, periodLabel);
-  const response = await callLLM(systemPrompt, message, history, user.id, 512);
-  const result = parseJSON<{ action?: string; data?: any; message: string }>(response);
 
-  return result || { message: response };
+  // Use callLLMForJSON with retry for reliable JSON output
+  const { result, rawResponse } = await callLLMForJSON<{ action?: string; data?: any; message: string }>(
+    systemPrompt,
+    message,
+    history,
+    user.id,
+    512,
+    0.3,
+    // Validator: must have message field (action is optional for clarification responses)
+    (r) => typeof r.message === 'string'
+  );
+
+  return result || { message: rawResponse };
 }
 
 /**
@@ -483,15 +560,24 @@ export async function processExerciseLogging(
   todayBurned: number
 ): Promise<ExerciseLoggingResult | { message: string }> {
   const systemPrompt = buildExerciseLoggerPrompt(user, todayBurned);
-  const response = await callLLM(systemPrompt, message, history, user.id, 512);
-  const result = parseJSON<ExerciseLoggingResult>(response);
 
-  // Support both single exercise and multiple exercises
-  if (result && (result.action === 'save_exercise' || result.action === 'save_multiple_exercises') && result.data) {
+  // Use callLLMForJSON with retry for reliable JSON output
+  const { result, rawResponse } = await callLLMForJSON<ExerciseLoggingResult>(
+    systemPrompt,
+    message,
+    history,
+    user.id,
+    512,
+    0.3,
+    // Validator: must have valid action and data
+    (r) => (r.action === 'save_exercise' || r.action === 'save_multiple_exercises') && !!r.data
+  );
+
+  if (result) {
     return result;
   }
 
-  return { message: response };
+  return { message: rawResponse };
 }
 
 /**
@@ -506,10 +592,20 @@ export async function processExerciseUpdate(
   periodLabel: string = 'hari ini'
 ): Promise<{ action?: string; data?: any; message: string }> {
   const systemPrompt = buildExerciseUpdatePrompt(user, exerciseEntries, periodLabel);
-  const response = await callLLM(systemPrompt, message, history, user.id, 512);
-  const result = parseJSON<{ action?: string; data?: any; message: string }>(response);
 
-  return result || { message: response };
+  // Use callLLMForJSON with retry for reliable JSON output
+  const { result, rawResponse } = await callLLMForJSON<{ action?: string; data?: any; message: string }>(
+    systemPrompt,
+    message,
+    history,
+    user.id,
+    512,
+    0.3,
+    // Validator: must have message field (action is optional for clarification responses)
+    (r) => typeof r.message === 'string'
+  );
+
+  return result || { message: rawResponse };
 }
 
 /**

@@ -431,8 +431,11 @@ async function handleMessageWithIntentRouting(
     }
 
     default:
-      // Fallback to conversation
-      return { message: intentResult.message || "I'm not sure what you mean. Can you tell me what you ate or what exercise you did?" };
+      // Fallback to conversation - NEVER use intentResult.message as it might be LLM hallucination
+      // Instead, call processConversation to generate a proper response
+      console.log('[INTENT-ROUTING] Unknown intent, falling back to conversation');
+      const fallbackResponse = await processConversation(messageText, promptUser, conversationHistory, language);
+      return { message: fallbackResponse };
   }
 }
 

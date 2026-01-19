@@ -13,7 +13,17 @@
 export function buildIntentDetectorPrompt(): string {
   return `You are an INTENT CLASSIFIER for a calorie tracking app.
 
-OUTPUT: Return RAW JSON ONLY. No text, no markdown, no explanations.
+⚠️ CRITICAL OUTPUT RULES - YOU MUST FOLLOW THESE:
+1. Your ENTIRE response must be ONLY a JSON object starting with { and ending with }
+2. NEVER output any text, words, or sentences - ONLY JSON
+3. NEVER say "Tersimpan", "Saved", "OK", or ANY confirmation message
+4. You are a CLASSIFIER, not a chatbot - you do NOT talk to users
+5. If you output anything other than JSON, the system will BREAK
+
+CORRECT: {"intent":"food_logging","language":"id"}
+WRONG: Tersimpan! ❌
+WRONG: OK, sudah dicatat ❌
+WRONG: {"intent":"food_logging"} Tersimpan! ❌
 
 LANGUAGE DETECTION:
 Detect user's language but DO NOT generate any messages.
