@@ -102,7 +102,89 @@ async function callLLM(
 }
 
 /**
- * Call LLM expecting JSON output with automatic retry on parse failure
+ * Operation types for field validation
+ */
+type OperationType = 'food_logging' | 'food_update' | 'exercise_logging' | 'exercise_update' | 'profile_update';
+
+/**
+ * Field validation configurations for different operation types
+ */
+const VALID_FIELDS_CONFIG: Record<OperationType, { dataFields: Set<string>; nestedFields?: Set<string> }> = {
+  food_logging: {
+    dataFields: new Set(['items']),
+    nestedFields: new Set(['foodDescription', 'calories', 'estimatedByAi']),
+  },
+  food_update: {
+    dataFields: new Set(['entryId', 'updates']),
+    nestedFields: new Set(['calories', 'foodDescription']),
+  },
+  exercise_logging: {
+    dataFields: new Set(['exerciseType', 'durationMinutes', 'caloriesBurned', 'metValue', 'userProvidedCalories', 'entries']),
+    nestedFields: new Set(['exerciseType', 'durationMinutes', 'caloriesBurned', 'metValue']),
+  },
+  exercise_update: {
+    dataFields: new Set(['exerciseId', 'updates']),
+    nestedFields: new Set(['durationMinutes', 'caloriesBurned', 'exerciseType', 'metValue']),
+  },
+  profile_update: {
+    dataFields: new Set(['nickname', 'fullName', 'age', 'gender', 'weightKg', 'heightCm', 'activityLevel', 'deficitTarget']),
+  },
+};
+
+/**
+ * Validate fields in an object against allowed fields
+ * Returns array of invalid field names
+ */
+function findInvalidFields(data: Record<string, unknown>, validFields: Set<string>): string[] {
+  const invalid: string[] = [];
+  for (const key of Object.keys(data)) {
+    if (!validFields.has(key)) {
+      invalid.push(key);
+    }
+  }
+  return invalid;
+}
+
+/**
+ * Validate operation-specific fields in the data object
+ * Returns invalid fields if any, or empty array if valid
+ */
+function validateOperationFields(operationType: OperationType, data: Record<string, unknown>): string[] {
+  const config = VALID_FIELDS_CONFIG[operationType];
+  if (!config) return [];
+
+  const invalidFields: string[] = [];
+
+  // Check top-level data fields
+  invalidFields.push(...findInvalidFields(data, config.dataFields));
+
+  // Check nested fields based on operation type
+  if (config.nestedFields) {
+    if (operationType === 'food_logging' && Array.isArray(data.items)) {
+      for (const item of data.items as Record<string, unknown>[]) {
+        const itemInvalid = findInvalidFields(item, config.nestedFields);
+        invalidFields.push(...itemInvalid.map(f => `items[].${f}`));
+      }
+    }
+
+    if ((operationType === 'food_update' || operationType === 'exercise_update') && data.updates) {
+      const updatesInvalid = findInvalidFields(data.updates as Record<string, unknown>, config.nestedFields);
+      invalidFields.push(...updatesInvalid.map(f => `updates.${f}`));
+    }
+
+    if (operationType === 'exercise_logging' && Array.isArray(data.entries)) {
+      for (const entry of data.entries as Record<string, unknown>[]) {
+        const entryInvalid = findInvalidFields(entry, config.nestedFields);
+        invalidFields.push(...entryInvalid.map(f => `entries[].${f}`));
+      }
+    }
+  }
+
+  return invalidFields;
+}
+
+/**
+ * Call LLM expecting JSON output with automatic retry on parse failure or invalid fields
  * Retries once with stricter instructions and zero temperature if first attempt fails
  */
 async function callLLMForJSON<T>(
@@ -112,14 +194,25 @@ async function callLLMForJSON<T>(
   userId: string,
   maxTokens: number = 512,
   temperature: number = 0.3,
-  validator?: (result: T) => boolean
+  validator?: (result: T) => boolean,
+  operationType?: OperationType
 ): Promise<{ result: T | null; rawResponse: string }> {
   // First attempt
   const response = await callLLM(systemPrompt, userMessage, history, userId, maxTokens, temperature);
   let result = parseJSON<T>(response);
 
   // Check if result is valid (basic check or custom validator)
-  const isValid = result !== null && (validator ? validator(result) : true);
+  let isValid = result !== null && (validator ? validator(result) : true);
+
+  // If valid JSON but has invalid fields, mark as invalid for retry
+  let invalidFields: string[] = [];
+  if (isValid && operationType && result && (result as any).data) {
+    invalidFields = validateOperationFields(operationType, (result as any).data);
+    if (invalidFields.length > 0) {
+      console.warn(`[LLM-JSON] Invalid fields detected: ${invalidFields.join(', ')}`);
+      isValid = false;
+    }
+  }
 
   if (isValid) {
     return { result, rawResponse: response };
@@ -127,24 +220,41 @@ async function callLLMForJSON<T>(
 
   // Retry with stricter instructions
   console.warn('[LLM-JSON] First attempt failed, retrying with stricter prompt...');
-  console.warn('[LLM-JSON] Failed response:', response.substring(0, 150));
+  console.warn('[LLM-JSON] Failed response:', response.substring(0, 200));
 
-  const retryPrompt = systemPrompt + `
+  let retryPrompt = systemPrompt + `
 
 ⚠️ RETRY - YOUR PREVIOUS RESPONSE WAS INVALID
 You MUST output ONLY a valid JSON object. No text, no explanation.
 Start your response with { and end with }`;
 
+  // Add field-specific correction if we detected invalid fields
+  if (invalidFields.length > 0 && operationType) {
+    const validFieldsList = Array.from(VALID_FIELDS_CONFIG[operationType].dataFields).join(', ');
+    retryPrompt += `
+
+FIELD ERROR: You used invalid field names: ${invalidFields.join(', ')}
+You MUST use ONLY these field names in data: ${validFieldsList}`;
+  }
+
   const retryResponse = await callLLM(retryPrompt, userMessage, history, userId, maxTokens, 0);
   result = parseJSON<T>(retryResponse);
 
   if (result !== null && (validator ? validator(result) : true)) {
+    // Check fields again on retry
+    if (operationType && (result as any).data) {
+      const retryInvalidFields = validateOperationFields(operationType, (result as any).data);
+      if (retryInvalidFields.length > 0) {
+        console.error(`[LLM-JSON] Retry still has invalid fields: ${retryInvalidFields.join(', ')}`);
+        // Return result but log warning - the DB layer will filter invalid fields
+      }
+    }
     console.log('[LLM-JSON] Retry succeeded');
     return { result, rawResponse: retryResponse };
   }
 
   console.error('[LLM-JSON] Retry also failed, returning null');
-  console.error('[LLM-JSON] Retry response:', retryResponse.substring(0, 150));
+  console.error('[LLM-JSON] Retry response:', retryResponse.substring(0, 200));
 
   return { result: null, rawResponse: retryResponse };
 }
@@ -431,7 +541,7 @@ export async function processFoodLogging(
 ): Promise<FoodLoggingResult | { message: string }> {
   const systemPrompt = buildFoodLoggerPrompt(user, todayCalories);
 
-  // Use callLLMForJSON with retry for reliable JSON output
+  // Use callLLMForJSON with retry for reliable JSON output and field validation
   const { result, rawResponse } = await callLLMForJSON<FoodLoggingResult>(
     systemPrompt,
     message,
@@ -440,7 +550,8 @@ export async function processFoodLogging(
     512,
     0.3,
     // Validator: must have action and items
-    (r) => r.action === 'save_calories' && Array.isArray(r.data?.items) && r.data.items.length > 0
+    (r) => r.action === 'save_calories' && Array.isArray(r.data?.items) && r.data.items.length > 0,
+    'food_logging' // Enable field validation for food logging
   );
 
   if (result) {
@@ -463,7 +574,7 @@ export async function processFoodUpdate(
 ): Promise<{ action?: string; data?: any; message: string }> {
   const systemPrompt = buildFoodUpdatePrompt(user, foodEntries, periodLabel);
 
-  // Use callLLMForJSON with retry for reliable JSON output
+  // Use callLLMForJSON with retry for reliable JSON output and field validation
   const { result, rawResponse } = await callLLMForJSON<{ action?: string; data?: any; message: string }>(
     systemPrompt,
     message,
@@ -472,7 +583,8 @@ export async function processFoodUpdate(
     512,
     0.3,
     // Validator: must have message field (action is optional for clarification responses)
-    (r) => typeof r.message === 'string'
+    (r) => typeof r.message === 'string',
+    'food_update' // Enable field validation for food update
   );
 
   return result || { message: rawResponse };
@@ -561,7 +673,7 @@ export async function processExerciseLogging(
 ): Promise<ExerciseLoggingResult | { message: string }> {
   const systemPrompt = buildExerciseLoggerPrompt(user, todayBurned);
 
-  // Use callLLMForJSON with retry for reliable JSON output
+  // Use callLLMForJSON with retry for reliable JSON output and field validation
   const { result, rawResponse } = await callLLMForJSON<ExerciseLoggingResult>(
     systemPrompt,
     message,
@@ -570,7 +682,8 @@ export async function processExerciseLogging(
     512,
     0.3,
     // Validator: must have valid action and data
-    (r) => (r.action === 'save_exercise' || r.action === 'save_multiple_exercises') && !!r.data
+    (r) => (r.action === 'save_exercise' || r.action === 'save_multiple_exercises') && !!r.data,
+    'exercise_logging' // Enable field validation for exercise logging
   );
 
   if (result) {
@@ -593,7 +706,7 @@ export async function processExerciseUpdate(
 ): Promise<{ action?: string; data?: any; message: string }> {
   const systemPrompt = buildExerciseUpdatePrompt(user, exerciseEntries, periodLabel);
 
-  // Use callLLMForJSON with retry for reliable JSON output
+  // Use callLLMForJSON with retry for reliable JSON output and field validation
   const { result, rawResponse } = await callLLMForJSON<{ action?: string; data?: any; message: string }>(
     systemPrompt,
     message,
@@ -602,7 +715,8 @@ export async function processExerciseUpdate(
     512,
     0.3,
     // Validator: must have message field (action is optional for clarification responses)
-    (r) => typeof r.message === 'string'
+    (r) => typeof r.message === 'string',
+    'exercise_update' // Enable field validation for exercise update
   );
 
   return result || { message: rawResponse };
@@ -669,18 +783,77 @@ export async function processProfileSetup(
 }
 
 /**
+ * Valid field names for profile updates
+ */
+const VALID_PROFILE_FIELDS = new Set([
+  'nickname', 'fullName', 'age', 'gender', 'weightKg', 'heightCm', 'activityLevel', 'deficitTarget'
+]);
+
+/**
+ * Check if profile update data contains only valid fields
+ */
+function hasInvalidProfileFields(data: Record<string, unknown>): string[] {
+  const invalidFields: string[] = [];
+  for (const key of Object.keys(data)) {
+    if (!VALID_PROFILE_FIELDS.has(key)) {
+      invalidFields.push(key);
+    }
+  }
+  return invalidFields;
+}
+
+/**
  * Process profile update - user wants to update profile
+ * Includes retry logic if LLM returns invalid field names
  */
 export async function processProfileUpdate(
   message: string,
   user: PromptUser,
   history: CachedMessage[]
-): Promise<{ action?: string; data?: any; message: string }> {
+): Promise<{ action?: string; data?: any; message?: string; successMessage?: string; failureMessage?: string }> {
   const systemPrompt = buildProfileUpdatePrompt(user);
   const response = await callLLM(systemPrompt, message, history, user.id, 512);
-  const result = parseJSON<{ action?: string; data?: any; message: string }>(response);
+  const result = parseJSON<{ action?: string; data?: any; message?: string; successMessage?: string }>(response);
 
-  return result || { message: response };
+  if (!result) {
+    return { message: response };
+  }
+
+  // If there's an action with data, check for invalid fields
+  if (result.action && result.data) {
+    const invalidFields = hasInvalidProfileFields(result.data);
+
+    if (invalidFields.length > 0) {
+      console.warn(`[PROFILE-UPDATE] Invalid fields detected: ${invalidFields.join(', ')}. Retrying...`);
+
+      // Retry with a correction prompt
+      const correctionPrompt = `${systemPrompt}
+
+⚠️ CORRECTION REQUIRED - Your previous response used INVALID field names: ${invalidFields.join(', ')}
+You MUST use ONLY these exact field names: nickname, fullName, age, gender, weightKg, heightCm, activityLevel, deficitTarget
+Try again with the CORRECT field names.`;
+
+      const retryResponse = await callLLM(correctionPrompt, message, history, user.id, 512);
+      const retryResult = parseJSON<{ action?: string; data?: any; message?: string; successMessage?: string }>(retryResponse);
+
+      if (retryResult) {
+        // Check retry result for invalid fields
+        if (retryResult.action && retryResult.data) {
+          const retryInvalidFields = hasInvalidProfileFields(retryResult.data);
+          if (retryInvalidFields.length > 0) {
+            console.error(`[PROFILE-UPDATE] Retry still has invalid fields: ${retryInvalidFields.join(', ')}`);
+            // Return message only, don't try to save with invalid fields
+            return { message: retryResult.successMessage || retryResult.message || 'Unable to update profile. Please try again.' };
+          }
+        }
+        return retryResult;
+      }
+
+      return { message: retryResponse };
+    }
+  }
+
+  return result;
 }
 
 /**

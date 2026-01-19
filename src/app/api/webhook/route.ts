@@ -425,9 +425,16 @@ async function handleMessageWithIntentRouting(
 
     case 'profile_update': {
       const result = await processProfileUpdate(messageText, promptUser, conversationHistory);
+      // Profile update may return message OR successMessage depending on whether it's asking confirmation or saving
+      const responseMessage = result.message || (result as any).successMessage || 'Profile updated.';
       return {
-        message: result.message,
-        action: result.action ? { type: result.action, data: result.data } : undefined
+        message: responseMessage,
+        action: result.action ? {
+          type: result.action,
+          data: result.data,
+          successMessage: (result as any).successMessage,
+          failureMessage: (result as any).failureMessage
+        } : undefined
       };
     }
 
