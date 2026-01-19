@@ -36,34 +36,56 @@ export async function addCalorieEntry(
 }
 
 /**
+ * Get timezone offset in hours for a given timezone
+ * @param timezone - IANA timezone string (e.g., "Asia/Jakarta")
+ * @returns Offset in hours (e.g., +7 for Asia/Jakarta)
+ */
+function getTimezoneOffsetHours(timezone: string): number {
+  const now = new Date();
+  const utcDate = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
+  const tzDate = new Date(now.toLocaleString('en-US', { timeZone: timezone }));
+  return (tzDate.getTime() - utcDate.getTime()) / (1000 * 60 * 60);
+}
+
+/**
  * Get calorie entries for a specific date
  * @param userId - User UUID
- * @param date - Date in YYYY-MM-DD format
+ * @param date - Date in YYYY-MM-DD format (in user's timezone)
+ * @param userTimezone - User's timezone (defaults to Asia/Jakarta)
  * @returns DbResult with array of calorie entries or error
  */
 export async function getEntriesByDate(
   userId: string,
-  date: string
+  date: string,
+  userTimezone?: string | null
 ): Promise<DbResult<CalorieEntry[]>> {
   try {
-    // Parse the date string and create start/end of day in UTC
-    // This ensures consistent date comparison regardless of server timezone
+    const timezone = userTimezone || process.env.APP_TIMEZONE || 'Asia/Jakarta';
     const [year, month, day] = date.split('-').map(Number);
 
-    // Create dates at UTC midnight for the requested date
-    const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-    const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+    // Get timezone offset and calculate UTC boundaries for the user's local day
+    // For example, if timezone is GMT+8 (Asia/Jakarta is GMT+7):
+    // - "2026-01-19" local midnight = "2026-01-18T17:00:00Z" (for GMT+7)
+    // - "2026-01-19" local 23:59:59 = "2026-01-19T16:59:59Z" (for GMT+7)
+    const offsetHours = getTimezoneOffsetHours(timezone);
 
-    console.log(`[DATE DEBUG] Querying date: ${date}`);
-    console.log(`[DATE DEBUG] startOfDay UTC: ${startOfDay.toISOString()}`);
-    console.log(`[DATE DEBUG] endOfDay UTC: ${endOfDay.toISOString()}`);
+    // Create local midnight in the user's timezone, then convert to UTC
+    const startOfDayLocal = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    startOfDayLocal.setUTCHours(startOfDayLocal.getUTCHours() - offsetHours);
+
+    const endOfDayLocal = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+    endOfDayLocal.setUTCHours(endOfDayLocal.getUTCHours() - offsetHours);
+
+    console.log(`[DATE DEBUG] Querying date: ${date} (timezone: ${timezone}, offset: UTC${offsetHours >= 0 ? '+' : ''}${offsetHours})`);
+    console.log(`[DATE DEBUG] startOfDay UTC: ${startOfDayLocal.toISOString()}`);
+    console.log(`[DATE DEBUG] endOfDay UTC: ${endOfDayLocal.toISOString()}`);
 
     const entries = await prisma.calorieEntry.findMany({
       where: {
         userId,
         entryDate: {
-          gte: startOfDay,
-          lte: endOfDay,
+          gte: startOfDayLocal,
+          lte: endOfDayLocal,
         },
       },
       orderBy: {
