@@ -36,33 +36,35 @@ export function buildSummaryPrompt(user: PromptUser, data: SummaryData): string 
     // For multi-day: sum up daily deficits (each day's deficit = TDEE + burned - consumed)
     const totalDeficit = data.dailyBreakdown.reduce((sum, day) => sum + day.deficit, 0);
     const numDays = data.dailyBreakdown.length;
-    const periodKey = data.period === 'week' ? 'THIS_WEEK' : 'THIS_MONTH';
+    const periodType = data.period; // 'week' or 'month'
 
     return `Generate fitness summary. Output PLAIN TEXT only (no JSON, no markdown).
 ${LANG_RULES}
 USER: ${buildUserContext(user)}
 
-CRITICAL: Use ONLY the data below. Translate labels to user's language.
+CRITICAL: Use ONLY the data below. Translate ALL text to user's language.
 
 DATA:
-- Period: ${periodKey} (${numDays} days)
+- Period type: ${periodType}
+- Number of days: ${numDays}
 - Daily breakdown:
 ${formatDailyBreakdown(data.dailyBreakdown)}
 - Total: food=${data.caloriesConsumed}, exercise=${data.caloriesBurned}, deficit=${totalDeficit}
 - Daily target: ${data.dailyGoal}
 
-OUTPUT FORMAT (translate to user's language):
-📊 [Period] ([N] days)
+OUTPUT FORMAT:
+📊 [This Week/This Month in user's language] ([N] [days in user's language])
 
 [Day] [Date]: 🍽️[food] 🏃[exercise] 📉[deficit]
 ...
 
 📈 Total: 🍽️[total_food] 🏃[total_exercise] 📉[total_deficit]
-🎯 Target: [goal]/day
+🎯 Target: [goal]/[day in user's language]
 
 RULES:
-- Translate day names (Mon→Sen/Mon, Tue→Sel/Tue, etc.)
-- Translate labels (Total, Target, days)
+- "week" → "Minggu Ini" (ID) / "This Week" (EN)
+- "month" → "Bulan Ini" (ID) / "This Month" (EN)
+- Translate day names (Mon→Sen, Tue→Sel, etc. for ID)
 - 🍽️=food, 🏃=exercise, 📉=deficit
 - Positive deficit = weight loss (good!), negative = surplus
 - Add 1-2 sentences of encouragement
@@ -73,8 +75,9 @@ RULES:
   // Deficit = TDEE + exercise - consumed (positive = calorie deficit, negative = surplus)
   const deficit = data.tdee + data.caloriesBurned - data.caloriesConsumed;
 
-  // Get period key for LLM to translate
-  const periodKey = data.period === 'specific' ? data.specificDate : data.period.toUpperCase();
+  // Get period type for LLM to translate
+  const periodType = data.period; // 'today', 'yesterday', or 'specific'
+  const specificDate = data.specificDate || '';
 
   // Format food entries compactly
   const foodList = data.foodEntries?.length
@@ -90,10 +93,10 @@ RULES:
 ${LANG_RULES}
 USER: ${buildUserContext(user)}
 
-CRITICAL: Use ONLY the data below. Translate labels to user's language.
+CRITICAL: Use ONLY the data below. Translate ALL text to user's language.
 
 DATA:
-- Period: ${periodKey}
+- Period type: ${periodType}${specificDate ? ` (${specificDate})` : ''}
 - Food (${data.caloriesConsumed} total):
 ${foodList}
 - Exercise (${data.caloriesBurned} total):
@@ -101,22 +104,24 @@ ${exerciseList}
 - Deficit: ${deficit}, Remaining: ${remaining}
 - Daily target: ${data.dailyGoal}
 
-OUTPUT FORMAT (translate to user's language):
-📊 [Period]
+OUTPUT FORMAT:
+📊 [Period in user's language]
 
-🍽️ Food: [total]
+🍽️ [Food]: [total]
 [food list]
 
-🏃 Exercise: [total]
+🏃 [Exercise]: [total]
 [exercise list]
 
-📉 Deficit: [deficit] | ✅ Remaining: [remaining]
-🎯 Target: [goal]/day
+📉 [Deficit]: [deficit] | ✅ [Remaining]: [remaining]
+🎯 Target: [goal]/[day]
 
 RULES:
-- Translate period (TODAY, YESTERDAY, or show date)
-- Translate exercise types (cycling→sepeda, running→lari, etc.)
-- Translate labels (Food, Exercise, Deficit, Remaining, Target)
+- "today" → "Hari Ini" (ID) / "Today" (EN)
+- "yesterday" → "Kemarin" (ID) / "Yesterday" (EN)
+- "specific" → show the date
+- Translate exercise types (cycling→sepeda, running→lari, etc. for ID)
+- Translate all labels to user's language
 - Positive deficit = weight loss (good!), negative = surplus
 - Add 1-2 sentences of encouragement
 - Be brief!`;

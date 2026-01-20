@@ -103,10 +103,14 @@ async function handleMessageWithIntentRouting(
 
     case 'food_logging': {
       // "yes" after food estimate → Use LLM to extract details and save
-      // Get today's calories from cache
+      // Get today's calories and exercise from cache
       const { getCachedTodayData } = await import('@/lib/cache/todayDataCache');
       const todayData = await getCachedTodayData(user.id);
-      const result = await processFoodLogging(messageText, promptUser, conversationHistory, todayData.summary.totalCalories);
+      const todayExercise = todayData.exercises.reduce(
+        (sum: number, ex: any) => sum + (ex.caloriesBurned?.toNumber ? ex.caloriesBurned.toNumber() : ex.caloriesBurned),
+        0
+      );
+      const result = await processFoodLogging(messageText, promptUser, conversationHistory, todayData.summary.totalCalories, todayExercise);
 
       // Check if LLM returned a valid save action
       if ('action' in result && result.action === 'save_calories') {

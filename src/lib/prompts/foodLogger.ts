@@ -12,14 +12,17 @@ import type { PromptUser } from './types';
  * 1. User confirmed saving after estimate (says "ya/yes")
  * 2. User directly provides food with calories (e.g., "teh 5 kkal")
  */
-export function buildFoodLoggerPrompt(user: PromptUser, todayCalories: number): string {
+export function buildFoodLoggerPrompt(user: PromptUser, todayCalories: number, todayExercise: number = 0): string {
   const goal = user.dailyCalorieGoal ? Math.round(user.dailyCalorieGoal) : 2000;
+  const effectiveGoal = goal + todayExercise; // Goal + exercise burned
 
   return `Extract food and save. Output RAW JSON ONLY - absolutely no text before or after the JSON.
 ${LANG_RULES}
 
 USER CONTEXT:
 - Daily goal: ${goal} kcal
+- Exercise burned today: ${todayExercise} kcal
+- Effective goal: ${effectiveGoal} kcal (goal + exercise)
 - Today so far: ${todayCalories} kcal
 
 TWO SCENARIOS:
@@ -37,15 +40,16 @@ CRITICAL:
 - If user provides explicit calories → USE THAT EXACT VALUE, do not estimate
 - Output ONLY JSON - no explanations, no markdown, no text before/after
 - Start response with { and end with }
+- Show consumed/effectiveGoal (goal + exercise) in successMessage
 
 OUTPUT (JSON only):
-{"action":"save_calories","data":{"items":[{"foodDescription":"Food","calories":123,"estimatedByAi":false}]},"successMessage":"✅ Tersimpan!\\n☕ Food: 123 kkal\\n\\nHari ini: X/${goal} kkal","failureMessage":"❌ Gagal menyimpan."}
+{"action":"save_calories","data":{"items":[{"foodDescription":"Food","calories":123,"estimatedByAi":false}]},"successMessage":"✅ Tersimpan!\\n☕ Food: 123 kkal\\n\\nHari ini: X/${effectiveGoal} kkal","failureMessage":"❌ Gagal menyimpan."}
 
 EXAMPLES:
 
 User: "teh 5 kkal"
-{"action":"save_calories","data":{"items":[{"foodDescription":"Teh","calories":5,"estimatedByAi":false}]},"successMessage":"✅ Tersimpan!\\n☕ Teh: 5 kkal\\n\\nHari ini: ${todayCalories + 5}/${goal} kkal","failureMessage":"❌ Gagal menyimpan."}
+{"action":"save_calories","data":{"items":[{"foodDescription":"Teh","calories":5,"estimatedByAi":false}]},"successMessage":"✅ Tersimpan!\\n☕ Teh: 5 kkal\\n\\nHari ini: ${todayCalories + 5}/${effectiveGoal} kkal","failureMessage":"❌ Gagal menyimpan."}
 
 User: "ya" (after nasi goreng 550 kcal estimate)
-{"action":"save_calories","data":{"items":[{"foodDescription":"Nasi goreng","calories":550,"estimatedByAi":true}]},"successMessage":"✅ Tersimpan!\\n🍳 Nasi goreng: 550 kkal\\n\\nHari ini: ${todayCalories + 550}/${goal} kkal","failureMessage":"❌ Gagal menyimpan."}`;
+{"action":"save_calories","data":{"items":[{"foodDescription":"Nasi goreng","calories":550,"estimatedByAi":true}]},"successMessage":"✅ Tersimpan!\\n🍳 Nasi goreng: 550 kkal\\n\\nHari ini: ${todayCalories + 550}/${effectiveGoal} kkal","failureMessage":"❌ Gagal menyimpan."}`;
 }

@@ -537,9 +537,10 @@ export async function processFoodLogging(
   message: string,
   user: PromptUser,
   history: CachedMessage[],
-  todayCalories: number
+  todayCalories: number,
+  todayExercise: number = 0
 ): Promise<FoodLoggingResult | { message: string }> {
-  const systemPrompt = buildFoodLoggerPrompt(user, todayCalories);
+  const systemPrompt = buildFoodLoggerPrompt(user, todayCalories, todayExercise);
 
   // Use callLLMForJSON with retry for reliable JSON output and field validation
   const { result, rawResponse } = await callLLMForJSON<FoodLoggingResult>(
