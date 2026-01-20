@@ -3,18 +3,21 @@
  * Optimized for cheap models - generates friendly fitness summaries
  */
 
-import { LANG_RULES, buildUserContext, formatFoodEntriesForSummary, formatExerciseEntriesForSummary } from './shared';
+import { LANG_RULES, buildUserContext } from './shared';
 import type { PromptUser, SummaryData } from './types';
 
 /**
  * Format daily breakdown for week/month summaries
+ * Uses English day names - LLM will translate to user's language
+ * Format: Mon 20: 🍽️1600 🏃200 📉100
  */
 function formatDailyBreakdown(breakdown: SummaryData['dailyBreakdown']): string {
   if (!breakdown || breakdown.length === 0) return 'No data';
 
   return breakdown.map(day => {
-    const deficitSign = day.deficit >= 0 ? '+' : '';
-    return `${day.date} (${day.dayName}): 🍽️${day.consumed} | 💪${day.burned} | 📉${deficitSign}${day.deficit}`;
+    const shortDay = day.dayName.substring(0, 3); // Mon, Tue, Wed, etc.
+    const dayNum = day.date.split('-')[2]; // Get day number from YYYY-MM-DD
+    return `${shortDay} ${dayNum}: 🍽️${day.consumed} 🏃${day.burned} 📉${day.deficit}`;
   }).join('\n');
 }
 
@@ -25,71 +28,96 @@ function formatDailyBreakdown(breakdown: SummaryData['dailyBreakdown']): string 
 export function buildSummaryPrompt(user: PromptUser, data: SummaryData): string {
   // Remaining = goal - consumed + exercise
   const remaining = data.dailyGoal - data.caloriesConsumed + data.caloriesBurned;
-  // Deficit = TDEE + exercise - consumed (positive = calorie deficit, negative = surplus)
-  const deficit = data.tdee + data.caloriesBurned - data.caloriesConsumed;
-
-  // Format period label for display
-  const periodLabel = data.period === 'specific' && data.specificDate
-    ? data.specificDate // Show actual date like "2026-01-14"
-    : data.period.toUpperCase();
 
   // For week/month: show daily breakdown, no food/exercise details
   const isMultiDay = data.period === 'week' || data.period === 'month';
 
   if (isMultiDay && data.dailyBreakdown) {
-    return `Generate fitness summary for ${periodLabel}. Output PLAIN TEXT only (no JSON, no markdown).
+    // For multi-day: sum up daily deficits (each day's deficit = TDEE + burned - consumed)
+    const totalDeficit = data.dailyBreakdown.reduce((sum, day) => sum + day.deficit, 0);
+    const numDays = data.dailyBreakdown.length;
+    const periodKey = data.period === 'week' ? 'THIS_WEEK' : 'THIS_MONTH';
+
+    return `Generate fitness summary. Output PLAIN TEXT only (no JSON, no markdown).
 ${LANG_RULES}
 USER: ${buildUserContext(user)}
 
-CRITICAL: Use ONLY the data below. IGNORE any previous conversation messages.
+CRITICAL: Use ONLY the data below. Translate labels to user's language.
 
-${periodLabel} SUMMARY:
-📊 Goal: ${data.dailyGoal} kcal/day
-🍽️ Total Consumed: ${data.caloriesConsumed} kcal
-💪 Total Exercise: ${data.caloriesBurned} kcal
-📉 Total Deficit: ${deficit} kcal
-
-DAILY BREAKDOWN (Date - Day: Consumed | Exercise | Deficit):
+DATA:
+- Period: ${periodKey} (${numDays} days)
+- Daily breakdown:
 ${formatDailyBreakdown(data.dailyBreakdown)}
+- Total: food=${data.caloriesConsumed}, exercise=${data.caloriesBurned}, deficit=${totalDeficit}
+- Daily target: ${data.dailyGoal}
+
+OUTPUT FORMAT (translate to user's language):
+📊 [Period] ([N] days)
+
+[Day] [Date]: 🍽️[food] 🏃[exercise] 📉[deficit]
+...
+
+📈 Total: 🍽️[total_food] 🏃[total_exercise] 📉[total_deficit]
+🎯 Target: [goal]/day
 
 RULES:
-- Use ONLY the data provided above - do NOT reference conversation history
-- Show totals first, then daily breakdown
-- Translate day names to user's language (Monday→Senin, etc.)
-- Format: Date (DayName): Consumed | Exercise | Deficit
+- Translate day names (Mon→Sen/Mon, Tue→Sel/Tue, etc.)
+- Translate labels (Total, Target, days)
+- 🍽️=food, 🏃=exercise, 📉=deficit
 - Positive deficit = weight loss (good!), negative = surplus
-- NO food items, NO IDs - just daily totals
-- Be encouraging!`;
+- Add 1-2 sentences of encouragement
+- Be brief!`;
   }
 
   // For today/yesterday/specific: show food and exercise details
+  // Deficit = TDEE + exercise - consumed (positive = calorie deficit, negative = surplus)
+  const deficit = data.tdee + data.caloriesBurned - data.caloriesConsumed;
+
+  // Get period key for LLM to translate
+  const periodKey = data.period === 'specific' ? data.specificDate : data.period.toUpperCase();
+
+  // Format food entries compactly
+  const foodList = data.foodEntries?.length
+    ? data.foodEntries.map(e => `• ${e.food} (${e.calories})`).join('\n')
+    : '(none)';
+
+  // Format exercise entries compactly
+  const exerciseList = data.exerciseEntries?.length
+    ? data.exerciseEntries.map(e => `• ${e.type} ${e.duration}m (${e.calories})`).join('\n')
+    : '(none)';
+
   return `Generate fitness summary. Output PLAIN TEXT only (no JSON, no markdown).
 ${LANG_RULES}
 USER: ${buildUserContext(user)}
 
-CRITICAL: Use ONLY the data below. IGNORE any previous conversation messages.
+CRITICAL: Use ONLY the data below. Translate labels to user's language.
 
-${periodLabel}'S DATA (translate labels to user's language):
-📊 Goal: ${data.dailyGoal} kcal/day
-🍽️ Consumed: ${data.caloriesConsumed} kcal
-💪 Exercise: ${data.caloriesBurned} kcal
-✅ Remaining: ${remaining} kcal
-📉 Deficit: ${deficit} kcal
+DATA:
+- Period: ${periodKey}
+- Food (${data.caloriesConsumed} total):
+${foodList}
+- Exercise (${data.caloriesBurned} total):
+${exerciseList}
+- Deficit: ${deficit}, Remaining: ${remaining}
+- Daily target: ${data.dailyGoal}
 
-FOOD LOGGED (${data.foodEntries?.length || 0} items):
-${formatFoodEntriesForSummary(data.foodEntries || [])}
+OUTPUT FORMAT (translate to user's language):
+📊 [Period]
 
-EXERCISE LOGGED (${data.exerciseEntries?.length || 0} items):
-${formatExerciseEntriesForSummary(data.exerciseEntries || [])}
+🍽️ Food: [total]
+[food list]
+
+🏃 Exercise: [total]
+[exercise list]
+
+📉 Deficit: [deficit] | ✅ Remaining: [remaining]
+🎯 Target: [goal]/day
 
 RULES:
-- Use ONLY the data provided above - do NOT reference conversation history
-- Show 5 metrics: Goal, Consumed, Exercise, Remaining, Deficit
-- Remaining = Goal - Consumed + Exercise
-- Deficit = TDEE (${data.tdee}) + Exercise - Consumed
-- Positive deficit = losing weight (good!), negative = surplus
-- TRANSLATE exercise types (cycling→sepeda, running→lari, etc.)
-- List food and exercise entries by name and calories only
-- NEVER include IDs, UUIDs, or any technical identifiers in output
-- Be encouraging!`;
+- Translate period (TODAY, YESTERDAY, or show date)
+- Translate exercise types (cycling→sepeda, running→lari, etc.)
+- Translate labels (Food, Exercise, Deficit, Remaining, Target)
+- Positive deficit = weight loss (good!), negative = surplus
+- Add 1-2 sentences of encouragement
+- Be brief!`;
 }
