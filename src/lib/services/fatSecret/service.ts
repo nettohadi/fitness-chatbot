@@ -150,8 +150,15 @@ export async function searchFoodCalories(foodName: string): Promise<FoodResult[]
  * Returns null if no good match found (use LLM fallback)
  */
 export async function getBestFoodMatch(foodName: string): Promise<FoodResult | null> {
-  const results = await searchFoodCalories(foodName);
-  return results.length > 0 ? results[0] : null;
+  console.log(`[FatSecret] getBestFoodMatch called with: "${foodName}"`);
+  try {
+    const results = await searchFoodCalories(foodName);
+    console.log(`[FatSecret] getBestFoodMatch got ${results.length} results`);
+    return results.length > 0 ? results[0] : null;
+  } catch (error) {
+    console.error(`[FatSecret] getBestFoodMatch error:`, error);
+    throw error;
+  }
 }
 
 /**

@@ -15,6 +15,29 @@ export interface FatSecretLogData {
 }
 
 /**
+ * Log when FatSecret search starts (to debug if function is being called)
+ */
+export async function logFatSecretStart(searchQuery: string): Promise<void> {
+  try {
+    await prisma.fatSecretLog.create({
+      data: {
+        searchQuery: `[START] ${searchQuery}`,
+        resultCount: 0,
+        topResult: null,
+        topCalories: null,
+        topServing: null,
+        calPer100g: null,
+        responseJson: Prisma.JsonNull,
+        errorMessage: null,
+        latencyMs: 0,
+      },
+    });
+  } catch (error) {
+    console.error('[FatSecret Logger] Failed to log start:', error);
+  }
+}
+
+/**
  * Log a FatSecret API call to the database
  * Non-blocking - errors are caught and logged to console
  */

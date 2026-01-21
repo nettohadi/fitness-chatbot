@@ -5,7 +5,7 @@
  */
 
 import crypto from 'crypto';
-import { logFatSecretCall } from './logger';
+import { logFatSecretCall, logFatSecretStart } from './logger';
 
 const FATSECRET_API_URL = 'https://platform.fatsecret.com/rest/server.api';
 
@@ -62,6 +62,9 @@ function generateSignature(baseString: string, consumerSecret: string, tokenSecr
  * Supports Indonesian and English food names
  */
 export async function searchFoods(query: string, maxResults: number = 5): Promise<FatSecretFood[]> {
+  // Log start of search to database (for debugging)
+  await logFatSecretStart(query).catch(() => {});
+
   // Note: env var has typo "COMSUMER" instead of "CONSUMER"
   const consumerKey = process.env.FAT_SECRET_COMSUMER_KEY;
   const consumerSecret = process.env.FAT_SECRET_CONSUMER_SECRET;
