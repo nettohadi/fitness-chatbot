@@ -380,11 +380,16 @@ export async function detectIntent(
 ): Promise<IntentResult> {
   const systemPrompt = buildIntentDetectorPrompt();
 
+  // Only pass last 2 messages for confirmation detection (e.g., "ya" after "Simpan?")
+  // Passing too much history causes LLM to pattern-match and output food estimates
+  // instead of JSON classification
+  const limitedHistory = history.slice(-2);
+
   // Use callLLMForJSON with retry for reliable JSON output
   const { result } = await callLLMForJSON<IntentResult>(
     systemPrompt,
     message,
-    history,
+    limitedHistory,
     user.id,
     256,
     0.1,
