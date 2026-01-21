@@ -280,9 +280,27 @@ export async function GET(request: NextRequest) {
         });
       }
 
+      case 'food-calories': {
+        // Get cached food calorie data using raw query
+        const search = searchParams.get('search');
+
+        const entries = await prisma.$queryRaw`
+          SELECT * FROM food_calories
+          ORDER BY updated_at DESC
+          LIMIT ${limit}
+        `;
+
+        return NextResponse.json({
+          type: 'food-calories',
+          count: Array.isArray(entries) ? entries.length : 0,
+          filters: { search },
+          data: entries,
+        });
+      }
+
       default:
         return NextResponse.json(
-          { error: 'Invalid type. Use: logs, messages, users, full-log, calories, or exercises' },
+          { error: 'Invalid type. Use: logs, messages, users, full-log, calories, exercises, or food-calories' },
           { status: 400 }
         );
     }
