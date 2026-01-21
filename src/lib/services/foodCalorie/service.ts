@@ -9,8 +9,6 @@ export interface FoodCalorieResult {
   id: string;
   name: string;
   caloriesPer100g: number;
-  defaultServing: string | null;
-  servingGrams: number | null;
   source: string;
   similarity?: number;
 }
@@ -18,8 +16,6 @@ export interface FoodCalorieResult {
 export interface SaveFoodCalorieInput {
   name: string;
   caloriesPer100g: number;
-  defaultServing?: string;
-  servingGrams?: number;
   source: 'ai' | 'user' | 'manual';
 }
 
@@ -61,8 +57,6 @@ export async function findSimilarFood(
       id: exactMatch.id,
       name: exactMatch.name,
       caloriesPer100g: exactMatch.caloriesPer100g,
-      defaultServing: exactMatch.defaultServing,
-      servingGrams: exactMatch.servingGrams,
       source: exactMatch.source,
       similarity: 1.0,
     };
@@ -75,8 +69,6 @@ export async function findSimilarFood(
         id: string;
         name: string;
         calories_per_100g: number;
-        default_serving: string | null;
-        serving_grams: number | null;
         source: string;
         sim: number;
       }>
@@ -85,8 +77,6 @@ export async function findSimilarFood(
         id,
         name,
         calories_per_100g,
-        default_serving,
-        serving_grams,
         source,
         similarity(name, ${foodName}) as sim
       FROM food_calories
@@ -111,8 +101,6 @@ export async function findSimilarFood(
         id: match.id,
         name: match.name,
         caloriesPer100g: match.calories_per_100g,
-        defaultServing: match.default_serving,
-        servingGrams: match.serving_grams,
         source: match.source,
         similarity: match.sim,
       };
@@ -142,8 +130,6 @@ export async function saveFoodCalorie(input: SaveFoodCalorieInput): Promise<Food
       ...(input.source === 'user' || input.source === 'manual'
         ? {
             caloriesPer100g: input.caloriesPer100g,
-            defaultServing: input.defaultServing,
-            servingGrams: input.servingGrams,
             source: input.source,
           }
         : {}),
@@ -153,8 +139,6 @@ export async function saveFoodCalorie(input: SaveFoodCalorieInput): Promise<Food
       name: input.name,
       nameNormalized: normalized,
       caloriesPer100g: input.caloriesPer100g,
-      defaultServing: input.defaultServing,
-      servingGrams: input.servingGrams,
       source: input.source,
     },
   });
@@ -165,8 +149,6 @@ export async function saveFoodCalorie(input: SaveFoodCalorieInput): Promise<Food
     id: result.id,
     name: result.name,
     caloriesPer100g: result.caloriesPer100g,
-    defaultServing: result.defaultServing,
-    servingGrams: result.servingGrams,
     source: result.source,
   };
 }

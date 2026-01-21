@@ -134,8 +134,6 @@ model FoodCalorie {
   name            String   @db.VarChar(255) // Original food name: "nasi goreng", "tempe goreng manis"
   nameNormalized  String   @map("name_normalized") @db.VarChar(255) // Normalized: "nasigoreng", "tempegorengmanis"
   caloriesPer100g Int      @map("calories_per_100g") // Calories per 100g
-  defaultServing  String?  @map("default_serving") @db.VarChar(50) // "1 porsi", "100g"
-  servingGrams    Int?     @map("serving_grams") // Grams per default serving
   source          String   @db.VarChar(20) // "ai", "user", "manual"
   usageCount      Int      @default(1) @map("usage_count") // Track popularity
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)

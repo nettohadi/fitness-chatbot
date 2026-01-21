@@ -309,8 +309,6 @@ export interface FoodCalorieEntry {
   name: string
   nameNormalized: string
   caloriesPer100g: number
-  defaultServing: string | null
-  servingGrams: number | null
   source: string
   usageCount: number
   createdAt: string

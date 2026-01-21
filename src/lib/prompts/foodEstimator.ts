@@ -20,14 +20,10 @@ export function buildFoodEstimatorPrompt(user: PromptUser, cachedCalorieData?: F
     ? `
 ⚠️ CACHED CALORIE DATA (USE THIS FOR CALCULATION):
 - Food: ${cachedCalorieData.name}
-- Calories: ${cachedCalorieData.caloriesPer100g} kcal per 100g ← USE THIS FOR CALCULATION!
-${cachedCalorieData.defaultServing ? `- Default serving: ${cachedCalorieData.defaultServing}${cachedCalorieData.servingGrams ? ` (${cachedCalorieData.servingGrams}g)` : ''}` : ''}
+- Calories: ${cachedCalorieData.caloriesPer100g} kcal per 100g ← USE THIS VALUE!
 - Source: ${cachedCalorieData.source === 'ai' ? 'AI estimate (cached)' : cachedCalorieData.source}
 
-CALCULATION:
-User's grams × ${cachedCalorieData.caloriesPer100g}/100 = total kcal
-
-Example: User says "200g" → 200 × ${cachedCalorieData.caloriesPer100g}/100 = ${Math.round(200 * cachedCalorieData.caloriesPer100g / 100)} kcal
+CALCULATION: User's grams × ${cachedCalorieData.caloriesPer100g}/100 = total kcal
 `
     : '';
 
@@ -62,10 +58,12 @@ CRITICAL RULES:
 - Any confirmation that data was saved - YOU ARE ONLY ASKING "Simpan?"
 
 OUTPUT FORMAT (raw JSON):
-{"estimate":{"items":[{"food":"Nasi putih","calories":195,"portion":"1 piring (150g)","source":"cached"}]},"message":"🍚 Nasi putih\\n150g × 130 kcal/100g = 195 kcal\\n\\nSimpan?"}
+{"estimate":{"items":[{"food":"Nasi putih","calories":195,"portion":"150g","calPer100g":130,"source":"cached"}]},"message":"🍚 Nasi putih\\n150g × 130/100g = 195 kcal\\n\\nSimpan?"}
 
 Multiple:
-{"estimate":{"items":[{"food":"Nasi putih","calories":195,"portion":"1 piring","source":"cached"},{"food":"Ayam goreng","calories":130,"portion":"1 potong (50g)","source":"ai"}]},"message":"🍚 Nasi: 150g × 130/100g = 195 kcal\\n🍗 Ayam goreng: 50g × 260/100g = 130 kcal\\n\\nTotal: 325 kcal\\nSimpan?"}
+{"estimate":{"items":[{"food":"Nasi putih","calories":195,"portion":"150g","calPer100g":130,"source":"cached"},{"food":"Ayam goreng","calories":130,"portion":"50g","calPer100g":260,"source":"ai"}]},"message":"🍚 Nasi: 150g × 130/100g = 195 kcal\\n🍗 Ayam goreng: 50g × 260/100g = 130 kcal\\n\\nTotal: 325 kcal\\nSimpan?"}
 
-NOTE: Include "source":"cached" if using cached data, "source":"ai" if estimating yourself.`;
+REQUIRED FIELDS:
+- "calPer100g": The calories per 100g you used for calculation (REQUIRED!)
+- "source": "cached" if using cached data, "source": "ai" if estimating`;
 }

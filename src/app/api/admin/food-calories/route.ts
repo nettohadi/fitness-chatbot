@@ -54,8 +54,6 @@ export async function GET(request: NextRequest) {
       name: food.name,
       nameNormalized: food.nameNormalized,
       caloriesPer100g: food.caloriesPer100g,
-      defaultServing: food.defaultServing,
-      servingGrams: food.servingGrams,
       source: food.source,
       usageCount: food.usageCount,
       createdAt: food.createdAt.toISOString(),

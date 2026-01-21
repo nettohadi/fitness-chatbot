@@ -148,9 +148,6 @@ export default function FoodCaloriesPage() {
                     Cal/100g
                   </th>
                   <th className="px-3 py-3.5 text-left text-sm font-semibold text-foreground">
-                    Default Serving
-                  </th>
-                  <th className="px-3 py-3.5 text-left text-sm font-semibold text-foreground">
                     Source
                   </th>
                   <th className="px-3 py-3.5 text-left text-sm font-semibold text-foreground">
@@ -173,12 +170,6 @@ export default function FoodCaloriesPage() {
                         {food.caloriesPer100g}
                       </span>
                       <span className="text-muted-foreground"> kcal</span>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-4 text-sm text-muted-foreground">
-                      {food.defaultServing}
-                      {food.servingGrams && (
-                        <span className="text-xs ml-1">({food.servingGrams}g)</span>
-                      )}
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm">
                       <span

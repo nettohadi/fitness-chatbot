@@ -480,6 +480,8 @@ export interface FoodEstimateItem {
   food: string;
   calories: number;
   portion?: string;
+  calPer100g?: number;
+  source?: 'cached' | 'ai';
 }
 
 /**
@@ -562,28 +564,13 @@ export async function processFoodEstimate(
 
   if (result && result.estimate) {
     // Save new LLM estimates to database for future consistency
-    // Only save if we didn't have cached data (i.e., LLM estimated this)
-    if (!cachedCalorieData && result.estimate.items.length > 0) {
-      for (const item of result.estimate.items) {
-        // Extract portion grams if available (e.g., "200g" -> 200)
-        const gramsMatch = item.portion?.match(/(\d+)\s*g/i);
-        const portionGrams = gramsMatch ? parseInt(gramsMatch[1]) : null;
-
-        // Calculate calories per 100g
-        let caloriesPer100g: number;
-        if (portionGrams && portionGrams > 0) {
-          caloriesPer100g = Math.round((item.calories / portionGrams) * 100);
-        } else {
-          // Assume portion is roughly 150g if not specified (typical serving)
-          caloriesPer100g = Math.round((item.calories / 150) * 100);
-        }
-
-        // Save to database (non-blocking)
+    // Only save items that have calPer100g and are from AI (not cached)
+    for (const item of result.estimate.items) {
+      // Only save if LLM provided calPer100g and it's an AI estimate (not using cached data)
+      if (item.calPer100g && item.calPer100g > 0 && item.source === 'ai') {
         saveFoodCalorie({
           name: item.food,
-          caloriesPer100g,
-          defaultServing: item.portion || '1 porsi',
-          servingGrams: portionGrams || 150,
+          caloriesPer100g: item.calPer100g,
           source: 'ai',
         }).catch((err) => console.error('[FoodEstimate] Failed to cache calorie:', err));
       }
