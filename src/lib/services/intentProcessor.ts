@@ -26,7 +26,7 @@ import {
   type SummaryData,
   type Language,
 } from '@/lib/prompts';
-import { getBestFoodMatch } from './fatSecret';
+import { getBestFoodMatch, saveFoodCalorie, type FoodCalorieResult } from './foodCalorie';
 
 // Use OpenRouter for LLM calls
 const openrouter = new OpenAI({
@@ -495,7 +495,7 @@ export interface FoodEstimateResult {
 
 /**
  * Extract food names from user message using LLM
- * Returns array of food names for FatSecret lookup
+ * Returns array of food names for calorie lookup
  */
 async function extractFoodNamesWithLLM(message: string, userId: string): Promise<string[]> {
   const prompt = `Extract ONLY the food/drink names from this message. Return JSON array of food names without quantities.
@@ -523,41 +523,72 @@ Return ONLY a JSON array, nothing else:`;
 
 /**
  * Process food estimate - user mentioned food they ate
- * Uses low temperature (0.3) for more accurate calculations
+ * Uses cached calorie data for consistency, falls back to LLM estimation
+ * Saves new LLM estimates to database for future consistency
  */
 export async function processFoodEstimate(
   message: string,
   user: PromptUser,
   history: CachedMessage[]
 ): Promise<FoodEstimateResult> {
-  // Pre-fetch FatSecret data for consistent calorie estimation
-  let fatSecretResult = null;
+  // Look up cached calorie data for consistent estimation
+  let cachedCalorieData: FoodCalorieResult | null = null;
+  let extractedFoodNames: string[] = [];
+
   try {
     // Use LLM to extract food names from the message
-    const foodNames = await extractFoodNamesWithLLM(message, user.id);
-    console.log(`[FoodEstimate] Extracted food names: ${JSON.stringify(foodNames)} (from: "${message}")`);
+    extractedFoodNames = await extractFoodNamesWithLLM(message, user.id);
+    console.log(`[FoodEstimate] Extracted food names: ${JSON.stringify(extractedFoodNames)} (from: "${message}")`);
 
-    // Search FatSecret for the first food item (primary food)
-    if (foodNames.length > 0) {
-      console.log(`[FoodEstimate] Searching FatSecret for: ${foodNames[0]}`);
-      fatSecretResult = await getBestFoodMatch(foodNames[0]);
-      if (fatSecretResult) {
-        console.log(`[FoodEstimate] FatSecret match: ${fatSecretResult.name} = ${fatSecretResult.caloriesPer100g || fatSecretResult.calories} kcal per ${fatSecretResult.caloriesPer100g ? '100g' : fatSecretResult.serving}`);
+    // Search cached calories for the first food item (primary food)
+    if (extractedFoodNames.length > 0) {
+      console.log(`[FoodEstimate] Looking up cached calories for: ${extractedFoodNames[0]}`);
+      cachedCalorieData = await getBestFoodMatch(extractedFoodNames[0]);
+      if (cachedCalorieData) {
+        console.log(`[FoodEstimate] Cache hit: ${cachedCalorieData.name} = ${cachedCalorieData.caloriesPer100g} kcal/100g (similarity: ${cachedCalorieData.similarity?.toFixed(2) || '1.00'})`);
       } else {
-        console.log(`[FoodEstimate] No FatSecret match for: ${foodNames[0]}`);
+        console.log(`[FoodEstimate] No cached data for: ${extractedFoodNames[0]}`);
       }
     }
   } catch (error) {
-    console.error('[FoodEstimate] FatSecret lookup failed:', error);
-    // Continue without FatSecret data - LLM will estimate
+    console.error('[FoodEstimate] Calorie lookup failed:', error);
+    // Continue without cached data - LLM will estimate
   }
 
-  const systemPrompt = buildFoodEstimatorPrompt(user, fatSecretResult);
+  const systemPrompt = buildFoodEstimatorPrompt(user, cachedCalorieData);
   // Low temperature for accurate calorie calculations
   const response = await callLLM(systemPrompt, message, history, user.id, 512, 0.3);
   const result = parseJSON<{ estimate: { items: FoodEstimateItem[] }; message: string }>(response);
 
   if (result && result.estimate) {
+    // Save new LLM estimates to database for future consistency
+    // Only save if we didn't have cached data (i.e., LLM estimated this)
+    if (!cachedCalorieData && result.estimate.items.length > 0) {
+      for (const item of result.estimate.items) {
+        // Extract portion grams if available (e.g., "200g" -> 200)
+        const gramsMatch = item.portion?.match(/(\d+)\s*g/i);
+        const portionGrams = gramsMatch ? parseInt(gramsMatch[1]) : null;
+
+        // Calculate calories per 100g
+        let caloriesPer100g: number;
+        if (portionGrams && portionGrams > 0) {
+          caloriesPer100g = Math.round((item.calories / portionGrams) * 100);
+        } else {
+          // Assume portion is roughly 150g if not specified (typical serving)
+          caloriesPer100g = Math.round((item.calories / 150) * 100);
+        }
+
+        // Save to database (non-blocking)
+        saveFoodCalorie({
+          name: item.food,
+          caloriesPer100g,
+          defaultServing: item.portion || '1 porsi',
+          servingGrams: portionGrams || 150,
+          source: 'ai',
+        }).catch((err) => console.error('[FoodEstimate] Failed to cache calorie:', err));
+      }
+    }
+
     return {
       estimate: {
         items: result.estimate.items,

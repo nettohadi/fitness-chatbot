@@ -39,8 +39,8 @@ const navItems = [
     icon: FileText,
   },
   {
-    name: "FatSecret",
-    href: "/admin/dashboard/fatsecret",
+    name: "Food Calories",
+    href: "/admin/dashboard/food-calories",
     icon: Utensils,
   },
   {

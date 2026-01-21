@@ -101,43 +101,6 @@ curl -H "Authorization: Bearer $DEBUG_API_TOKEN" \
   "http://localhost:3000/api/admin/debug?type=exercises&phone=628123456789&limit=10"
 ```
 
-### `fatsecret`
-Get FatSecret API logs for debugging food calorie lookups.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `query` | string | Filter by search query (partial match) |
-| `errors` | 'true' | Show only error logs |
-
-```bash
-# Recent FatSecret API calls
-curl -H "Authorization: Bearer $DEBUG_API_TOKEN" \
-  "http://localhost:3000/api/admin/debug?type=fatsecret&limit=10"
-
-# Search for specific food queries
-curl -H "Authorization: Bearer $DEBUG_API_TOKEN" \
-  "http://localhost:3000/api/admin/debug?type=fatsecret&query=nasi%20goreng"
-
-# Show only errors
-curl -H "Authorization: Bearer $DEBUG_API_TOKEN" \
-  "http://localhost:3000/api/admin/debug?type=fatsecret&errors=true"
-
-# Filter by date
-curl -H "Authorization: Bearer $DEBUG_API_TOKEN" \
-  "http://localhost:3000/api/admin/debug?type=fatsecret&date=2026-01-21"
-```
-
-Response includes:
-- `searchQuery`: The food search term
-- `resultCount`: Number of results returned
-- `topResult`: Name of the top matching food
-- `topCalories`: Calories of the top result
-- `topServing`: Serving size of the top result
-- `calPer100g`: Normalized calories per 100g
-- `responseJson`: Full API response (all matching foods)
-- `errorMessage`: Error message if the request failed
-- `latencyMs`: API response time in milliseconds
-
 ## Common Debug Scenarios
 
 ### Debug a specific conversation
@@ -188,32 +151,6 @@ curl -H "Authorization: Bearer $DEBUG_API_TOKEN" \
 ```
 
 The response includes `serverTime` to help debug timezone issues.
-
-### Debug FatSecret food lookups
-
-1. Check recent FatSecret API calls:
-```bash
-curl -H "Authorization: Bearer $DEBUG_API_TOKEN" \
-  "http://localhost:3000/api/admin/debug?type=fatsecret&limit=10"
-```
-
-2. Check if a specific food query returned results:
-```bash
-curl -H "Authorization: Bearer $DEBUG_API_TOKEN" \
-  "http://localhost:3000/api/admin/debug?type=fatsecret&query=nasi%20goreng"
-```
-
-3. Check for API errors:
-```bash
-curl -H "Authorization: Bearer $DEBUG_API_TOKEN" \
-  "http://localhost:3000/api/admin/debug?type=fatsecret&errors=true"
-```
-
-Look for:
-- `resultCount: 0` indicates no matches found (LLM fallback used)
-- `errorMessage` indicates API issues (check credentials, rate limits)
-- `calPer100g` shows the normalized calorie value used for portion calculations
-- `latencyMs` shows API performance (high values may indicate network issues)
 
 ## Environment Setup
 

@@ -303,28 +303,27 @@ export function useUserMessages(userId: string) {
   })
 }
 
-// FatSecret Logs
-export interface FatSecretLogEntry {
+// Food Calories
+export interface FoodCalorieEntry {
   id: string
+  name: string
+  nameNormalized: string
+  caloriesPer100g: number
+  defaultServing: string | null
+  servingGrams: number | null
+  source: string
+  usageCount: number
   createdAt: string
-  searchQuery: string
-  resultCount: number
-  topResult: string | null
-  topCalories: number | null
-  topServing: string | null
-  calPer100g: number | null
-  responseJson: any
-  errorMessage: string | null
-  latencyMs: number
+  updatedAt: string
 }
 
-export interface FatSecretLogsResponse {
-  logs: FatSecretLogEntry[]
+export interface FoodCaloriesResponse {
+  foods: FoodCalorieEntry[]
   stats: {
-    totalLogs: number
-    todayLogs: number
-    errorLogs: number
-    avgLatency: number
+    totalCount: number
+    aiCount: number
+    manualCount: number
+    topUsed: { name: string; count: number } | null
   }
   pagination: {
     page: number
@@ -334,25 +333,25 @@ export interface FatSecretLogsResponse {
   }
 }
 
-export function useFatSecretLogs(
+export function useFoodCalories(
   page: number = 1,
   limit: number = 50,
-  query?: string,
-  errorsOnly?: boolean
+  search?: string,
+  source?: string
 ) {
   const params = new URLSearchParams({
     page: page.toString(),
     limit: limit.toString(),
   })
-  if (query) {
-    params.set("query", query)
+  if (search) {
+    params.set("search", search)
   }
-  if (errorsOnly) {
-    params.set("errors", "true")
+  if (source) {
+    params.set("source", source)
   }
 
-  return useQuery<FatSecretLogsResponse>({
-    queryKey: ["admin", "fatsecret", page, limit, query, errorsOnly],
-    queryFn: () => fetchJson<FatSecretLogsResponse>(`/api/admin/fatsecret?${params}`),
+  return useQuery<FoodCaloriesResponse>({
+    queryKey: ["admin", "food-calories", page, limit, search, source],
+    queryFn: () => fetchJson<FoodCaloriesResponse>(`/api/admin/food-calories?${params}`),
   })
 }
