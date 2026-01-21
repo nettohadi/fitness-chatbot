@@ -26,6 +26,7 @@ import {
   type SummaryData,
   type Language,
 } from '@/lib/prompts';
+import { getBestFoodMatch } from './fatSecret';
 
 // Use OpenRouter for LLM calls
 const openrouter = new OpenAI({
@@ -525,14 +526,13 @@ export async function processFoodEstimate(
   // Pre-fetch FatSecret data for consistent calorie estimation
   let fatSecretResult = null;
   try {
-    const { getBestFoodMatch } = await import('./fatSecret');
-
     // Use LLM to extract food names from the message
     const foodNames = await extractFoodNamesWithLLM(message, user.id);
     console.log(`[FoodEstimate] Extracted food names: ${JSON.stringify(foodNames)} (from: "${message}")`);
 
     // Search FatSecret for the first food item (primary food)
     if (foodNames.length > 0) {
+      console.log(`[FoodEstimate] Searching FatSecret for: ${foodNames[0]}`);
       fatSecretResult = await getBestFoodMatch(foodNames[0]);
       if (fatSecretResult) {
         console.log(`[FoodEstimate] FatSecret match: ${fatSecretResult.name} = ${fatSecretResult.caloriesPer100g || fatSecretResult.calories} kcal per ${fatSecretResult.caloriesPer100g ? '100g' : fatSecretResult.serving}`);
