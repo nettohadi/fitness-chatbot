@@ -63,7 +63,7 @@ async function handleMessageWithIntentRouting(
   messageText: string,
   user: any,
   conversationHistory: any[]
-): Promise<{ message: string; action?: any }> {
+): Promise<{ message: string; action?: any; language?: string }> {
   const promptUser = toPromptUser(user);
 
   // STEP 0: Check profile completion FIRST (no LLM call needed)
@@ -85,7 +85,7 @@ async function handleMessageWithIntentRouting(
     case 'conversation': {
       // Use dedicated conversation handler (greetings, out-of-scope)
       const response = await processConversation(messageText, promptUser, conversationHistory, language);
-      return { message: response };
+      return { message: response, language };
     }
 
     // FOOD FLOW
@@ -98,7 +98,7 @@ async function handleMessageWithIntentRouting(
       const messageWithData = result.estimate
         ? `${result.message}\n<!--ESTIMATE:${JSON.stringify({ estimate: result.estimate })}-->`
         : result.message;
-      return { message: messageWithData };
+      return { message: messageWithData, language };
     }
 
     case 'food_logging': {
@@ -118,6 +118,7 @@ async function handleMessageWithIntentRouting(
         // Store both messages so we can use failureMessage if save fails
         return {
           message: result.successMessage,
+          language,
           action: {
             type: result.action,
             data: result.data,
@@ -128,7 +129,7 @@ async function handleMessageWithIntentRouting(
       }
 
       // LLM couldn't extract food details - return its message
-      return { message: (result as { message: string }).message };
+      return { message: (result as { message: string }).message, language };
     }
 
     case 'food_update': {
@@ -167,6 +168,7 @@ async function handleMessageWithIntentRouting(
       const result = await processFoodUpdate(messageText, promptUser, conversationHistory, formattedFood, foodPeriodLabel);
       return {
         message: result.message,
+        language,
         action: result.action ? { type: result.action, data: result.data } : undefined
       };
     }
@@ -181,7 +183,7 @@ async function handleMessageWithIntentRouting(
       const messageWithData = result.estimate
         ? `${result.message}\n<!--ESTIMATE:${JSON.stringify({ estimate: result.estimate })}-->`
         : result.message;
-      return { message: messageWithData };
+      return { message: messageWithData, language };
     }
 
     case 'exercise_logging': {
@@ -201,6 +203,7 @@ async function handleMessageWithIntentRouting(
         // Store both messages so we can use failureMessage if save fails
         return {
           message: result.successMessage,
+          language,
           action: {
             type: result.action,
             data: result.data,
@@ -211,7 +214,7 @@ async function handleMessageWithIntentRouting(
       }
 
       // LLM couldn't extract exercise details - return its message
-      return { message: (result as { message: string }).message };
+      return { message: (result as { message: string }).message, language };
     }
 
     case 'exercise_update': {
@@ -251,6 +254,7 @@ async function handleMessageWithIntentRouting(
       const result = await processExerciseUpdate(messageText, promptUser, conversationHistory, formattedExercises, exercisePeriodLabel);
       return {
         message: result.message,
+        language,
         action: result.action ? { type: result.action, data: result.data } : undefined
       };
     }
@@ -290,7 +294,7 @@ async function handleMessageWithIntentRouting(
         };
 
         const result = await processSummary(messageText, promptUser, conversationHistory, summaryData);
-        return { message: result };
+        return { message: result, language };
       }
 
       // For other periods (yesterday, week, month, specific), fetch from database
@@ -424,7 +428,7 @@ async function handleMessageWithIntentRouting(
       };
 
       const result = await processSummary(messageText, promptUser, conversationHistory, summaryData);
-      return { message: result };
+      return { message: result, language };
     }
 
     case 'profile_update': {
@@ -433,6 +437,7 @@ async function handleMessageWithIntentRouting(
       const responseMessage = result.message || (result as any).successMessage || 'Profile updated.';
       return {
         message: responseMessage,
+        language,
         action: result.action ? {
           type: result.action,
           data: result.data,
@@ -447,7 +452,7 @@ async function handleMessageWithIntentRouting(
       // Instead, call processConversation to generate a proper response
       console.log('[INTENT-ROUTING] Unknown intent, falling back to conversation');
       const fallbackResponse = await processConversation(messageText, promptUser, conversationHistory, language);
-      return { message: fallbackResponse };
+      return { message: fallbackResponse, language };
   }
 }
 
@@ -594,11 +599,15 @@ export async function POST(request: NextRequest) {
             }
           } catch (actionError) {
             console.error('[INTENT-ROUTING] Action execution failed:', actionError);
-            // Use failureMessage if available, otherwise use generic error
+            // Use failureMessage if available, otherwise use language-aware generic error
             if (result.action.failureMessage) {
               responseMessage = result.action.failureMessage;
             } else {
-              responseMessage = 'Sorry, something went wrong. Please try again.';
+              // Use user's language for error message
+              const lang = result.language || 'id';
+              responseMessage = lang === 'id'
+                ? 'Maaf, terjadi kesalahan. Silakan coba lagi.'
+                : 'Sorry, something went wrong. Please try again.';
             }
           }
         }
