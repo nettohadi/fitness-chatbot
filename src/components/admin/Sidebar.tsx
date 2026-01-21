@@ -13,6 +13,7 @@ import {
   Menu,
   X,
   Dumbbell,
+  Utensils,
 } from "lucide-react"
 import { useState } from "react"
 import ThemeToggle from "@/components/ThemeToggle"
@@ -36,6 +37,11 @@ const navItems = [
     name: "API Logs",
     href: "/admin/dashboard/logs",
     icon: FileText,
+  },
+  {
+    name: "FatSecret",
+    href: "/admin/dashboard/fatsecret",
+    icon: Utensils,
   },
   {
     name: "Analytics",

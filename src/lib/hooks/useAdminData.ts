@@ -302,3 +302,57 @@ export function useUserMessages(userId: string) {
     enabled: !!userId,
   })
 }
+
+// FatSecret Logs
+export interface FatSecretLogEntry {
+  id: string
+  createdAt: string
+  searchQuery: string
+  resultCount: number
+  topResult: string | null
+  topCalories: number | null
+  topServing: string | null
+  calPer100g: number | null
+  responseJson: any
+  errorMessage: string | null
+  latencyMs: number
+}
+
+export interface FatSecretLogsResponse {
+  logs: FatSecretLogEntry[]
+  stats: {
+    totalLogs: number
+    todayLogs: number
+    errorLogs: number
+    avgLatency: number
+  }
+  pagination: {
+    page: number
+    limit: number
+    total: number
+    totalPages: number
+  }
+}
+
+export function useFatSecretLogs(
+  page: number = 1,
+  limit: number = 50,
+  query?: string,
+  errorsOnly?: boolean
+) {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    limit: limit.toString(),
+  })
+  if (query) {
+    params.set("query", query)
+  }
+  if (errorsOnly) {
+    params.set("errors", "true")
+  }
+
+  return useQuery<FatSecretLogsResponse>({
+    queryKey: ["admin", "fatsecret", page, limit, query, errorsOnly],
+    queryFn: () => fetchJson<FatSecretLogsResponse>(`/api/admin/fatsecret?${params}`),
+  })
+}

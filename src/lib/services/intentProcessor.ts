@@ -494,7 +494,22 @@ export async function processFoodEstimate(
   user: PromptUser,
   history: CachedMessage[]
 ): Promise<FoodEstimateResult> {
-  const systemPrompt = buildFoodEstimatorPrompt(user);
+  // Pre-fetch FatSecret data for consistent calorie estimation
+  let fatSecretResult = null;
+  try {
+    const { getBestFoodMatch } = await import('./fatSecret');
+    fatSecretResult = await getBestFoodMatch(message);
+    if (fatSecretResult) {
+      console.log(`[FoodEstimate] FatSecret match: ${fatSecretResult.name} = ${fatSecretResult.calories} kcal per ${fatSecretResult.serving}`);
+    } else {
+      console.log(`[FoodEstimate] No FatSecret match for: ${message}`);
+    }
+  } catch (error) {
+    console.error('[FoodEstimate] FatSecret lookup failed:', error);
+    // Continue without FatSecret data - LLM will estimate
+  }
+
+  const systemPrompt = buildFoodEstimatorPrompt(user, fatSecretResult);
   // Low temperature for accurate calorie calculations
   const response = await callLLM(systemPrompt, message, history, user.id, 512, 0.3);
   const result = parseJSON<{ estimate: { items: FoodEstimateItem[] }; message: string }>(response);

@@ -31,13 +31,15 @@ function verifyToken(request: NextRequest): boolean {
 /**
  * GET /api/admin/debug
  * Query parameters:
- * - type: 'logs' | 'messages' | 'users' | 'full-log' | 'calories' | 'exercises'
+ * - type: 'logs' | 'messages' | 'users' | 'full-log' | 'calories' | 'exercises' | 'fatsecret'
  * - limit: number (default 10, max 50)
  * - userId: string (optional, filter by user)
  * - phone: string (optional, find user by phone)
  * - from: ISO date string (optional, filter logs from this date/time)
  * - to: ISO date string (optional, filter logs until this date/time)
  * - date: YYYY-MM-DD (optional, shorthand for a specific day)
+ * - query: string (optional, filter fatsecret logs by search query)
+ * - errors: 'true' (optional, filter fatsecret logs to show only errors)
  */
 export async function GET(request: NextRequest) {
   // Verify token
@@ -280,9 +282,56 @@ export async function GET(request: NextRequest) {
         });
       }
 
+      case 'fatsecret': {
+        // Get FatSecret API logs for debugging food searches
+        const where: any = {};
+        if (dateFilter) where.createdAt = dateFilter;
+
+        // Optional search query filter
+        const query = searchParams.get('query');
+        if (query) where.searchQuery = { contains: query, mode: 'insensitive' };
+
+        // Optional error filter
+        const errorsOnly = searchParams.get('errors') === 'true';
+        if (errorsOnly) where.errorMessage = { not: null };
+
+        const logs = await prisma.fatSecretLog.findMany({
+          where: Object.keys(where).length > 0 ? where : undefined,
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+          select: {
+            id: true,
+            searchQuery: true,
+            resultCount: true,
+            topResult: true,
+            topCalories: true,
+            topServing: true,
+            calPer100g: true,
+            responseJson: true,
+            errorMessage: true,
+            latencyMs: true,
+            createdAt: true,
+          },
+        });
+
+        return NextResponse.json({
+          type: 'fatsecret',
+          count: logs.length,
+          filters: {
+            query,
+            errorsOnly,
+            dateFilter: dateFilter ? { from: dateFilter.gte, to: dateFilter.lte } : null,
+          },
+          data: logs.map((log) => ({
+            ...log,
+            createdAtFormatted: log.createdAt.toISOString(),
+          })),
+        });
+      }
+
       default:
         return NextResponse.json(
-          { error: 'Invalid type. Use: logs, messages, users, full-log, calories, or exercises' },
+          { error: 'Invalid type. Use: logs, messages, users, full-log, calories, exercises, or fatsecret' },
           { status: 400 }
         );
     }

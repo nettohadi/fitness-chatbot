@@ -97,24 +97,29 @@ CRITICAL: Use ONLY the data below. Translate ALL text to user's language.
 
 DATA:
 - Period type: ${periodType}${specificDate ? ` (${specificDate})` : ''}
-- Food (${data.caloriesConsumed} total):
-${foodList}
-- Exercise (${data.caloriesBurned} total):
-${exerciseList}
-- Deficit: ${deficit}, Remaining: ${remaining}
+- Food total: ${data.caloriesConsumed}
+- Exercise total: ${data.caloriesBurned}
+- Deficit: ${deficit} (PRE-CALCULATED - use this exact value!)
+- Remaining: ${remaining} (PRE-CALCULATED - use this exact value!)
 - Daily target: ${data.dailyGoal}
+
+FOOD LIST:
+${foodList}
+
+EXERCISE LIST:
+${exerciseList}
 
 OUTPUT FORMAT:
 📊 [Period in user's language]
 
-🍽️ [Food]: [total]
+🍽️ [Food]: ${data.caloriesConsumed}
 [food list]
 
-🏃 [Exercise]: [total]
+🏃 [Exercise]: ${data.caloriesBurned}
 [exercise list]
 
-📉 [Deficit]: [deficit] | ✅ [Remaining]: [remaining]
-🎯 Target: [goal]/[day]
+📉 [Deficit]: ${deficit} | ✅ [Remaining]: ${remaining}
+🎯 Target: ${data.dailyGoal}/[day]
 
 RULES:
 - "today" → "Hari Ini" (ID) / "Today" (EN)

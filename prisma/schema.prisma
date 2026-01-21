@@ -126,3 +126,22 @@ model OtpSession {
   @@index([phoneNumber, expiresAt])
   @@map("otp_sessions")
 }
+
+/// FatSecret API logs for monitoring and debugging food searches
+model FatSecretLog {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  searchQuery   String   @map("search_query") @db.VarChar(255)
+  resultCount   Int      @map("result_count")
+  topResult     String?  @map("top_result") @db.VarChar(255)
+  topCalories   Int?     @map("top_calories")
+  topServing    String?  @map("top_serving") @db.VarChar(100)
+  calPer100g    Int?     @map("cal_per_100g")
+  responseJson  Json?    @map("response_json")
+  errorMessage  String?  @map("error_message") @db.Text
+  latencyMs     Int      @map("latency_ms")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([createdAt])
+  @@index([searchQuery])
+  @@map("fatsecret_logs")
+}
