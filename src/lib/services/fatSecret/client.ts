@@ -118,13 +118,13 @@ export async function searchFoods(query: string, maxResults: number = 5): Promis
       const errorMsg = `HTTP ${response.status}: ${response.statusText}`;
       console.error('[FatSecret] API error:', errorMsg);
 
-      // Log the error
-      logFatSecretCall({
+      // Log the error - await to ensure completion
+      await logFatSecretCall({
         searchQuery: query,
         results: [],
         errorMessage: errorMsg,
         latencyMs,
-      }).catch(() => {}); // Non-blocking
+      }).catch((err) => console.error('[FatSecret] Log failed:', err));
 
       return [];
     }
@@ -136,25 +136,25 @@ export async function searchFoods(query: string, maxResults: number = 5): Promis
       const errorMsg = `Error ${data.error.code}: ${data.error.message}`;
       console.error('[FatSecret] API error:', errorMsg);
 
-      // Log the error
-      logFatSecretCall({
+      // Log the error - await to ensure completion
+      await logFatSecretCall({
         searchQuery: query,
         results: [],
         errorMessage: errorMsg,
         latencyMs,
-      }).catch(() => {}); // Non-blocking
+      }).catch((err) => console.error('[FatSecret] Log failed:', err));
 
       return [];
     }
 
     // Handle no results
     if (!data.foods?.food) {
-      // Log empty results
-      logFatSecretCall({
+      // Log empty results - await to ensure completion
+      await logFatSecretCall({
         searchQuery: query,
         results: [],
         latencyMs,
-      }).catch(() => {}); // Non-blocking
+      }).catch((err) => console.error('[FatSecret] Log failed:', err));
 
       return [];
     }
@@ -174,12 +174,13 @@ export async function searchFoods(query: string, maxResults: number = 5): Promis
       }
     }
 
-    logFatSecretCall({
+    // Await logging to ensure it completes in serverless environments
+    await logFatSecretCall({
       searchQuery: query,
       results,
       topCaloriesPer100g,
       latencyMs,
-    }).catch(() => {}); // Non-blocking
+    }).catch((err) => console.error('[FatSecret] Log failed:', err));
 
     return results;
   } catch (error) {
@@ -187,13 +188,13 @@ export async function searchFoods(query: string, maxResults: number = 5): Promis
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error('[FatSecret] Request failed:', errorMsg);
 
-    // Log the error
-    logFatSecretCall({
+    // Log the error - await to ensure it completes
+    await logFatSecretCall({
       searchQuery: query,
       results: [],
       errorMessage: errorMsg,
       latencyMs,
-    }).catch(() => {}); // Non-blocking
+    }).catch((err) => console.error('[FatSecret] Error log failed:', err));
 
     return [];
   }
