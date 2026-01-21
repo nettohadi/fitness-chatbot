@@ -381,8 +381,10 @@ export async function detectIntent(
   const systemPrompt = buildIntentDetectorPrompt();
 
   // Only pass last 2 messages for confirmation detection (e.g., "ya" after "Simpan?")
-  // Passing too much history causes LLM to pattern-match and output food estimates
-  // instead of JSON classification
+  // This is sufficient because:
+  // - Most intents don't need history (food_estimate, summary, etc. have all info in message)
+  // - Confirmations only need the last assistant message to see "Simpan?" prompt
+  // - Passing too much history causes LLM to pattern-match and output food estimates
   const limitedHistory = history.slice(-2);
 
   // Use callLLMForJSON with retry for reliable JSON output
