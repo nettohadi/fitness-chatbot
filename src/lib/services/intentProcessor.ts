@@ -486,34 +486,31 @@ export interface FoodEstimateResult {
 }
 
 /**
- * Extract food name from user message for FatSecret lookup
- * Removes common prefixes like "makan", "saya makan", quantities, etc.
- * Examples:
- *   "Saya makan nasi goreng 200gr" -> "nasi goreng"
- *   "makan ayam goreng 1 potong" -> "ayam goreng"
- *   "nasi padang" -> "nasi padang"
+ * Extract food names from user message using LLM
+ * Returns array of food names for FatSecret lookup
  */
-function extractFoodNameForSearch(message: string): string {
-  let cleaned = message.toLowerCase().trim();
+async function extractFoodNamesWithLLM(message: string, userId: string): Promise<string[]> {
+  const prompt = `Extract ONLY the food/drink names from this message. Return JSON array of food names without quantities.
+Example: "Saya makan nasi goreng 200gr dan ayam bakar 1 potong" -> ["nasi goreng", "ayam bakar"]
+Example: "I had fried rice and orange juice" -> ["fried rice", "orange juice"]
+Example: "makan indomie 2 bungkus" -> ["indomie"]
 
-  // Remove common Indonesian prefixes
-  cleaned = cleaned
-    .replace(/^(saya\s+)?(sudah\s+)?(baru\s+)?(habis\s+)?makan\s+/i, '')
-    .replace(/^(saya\s+)?(sudah\s+)?(baru\s+)?(habis\s+)?minum\s+/i, '')
-    .replace(/^(i\s+)?(just\s+)?(had\s+|ate\s+|eaten\s+)?/i, '');
+Message: "${message}"
 
-  // Remove quantities at the end (e.g., "200 gr", "1 porsi", "2 potong")
-  cleaned = cleaned
-    .replace(/\s+\d+([.,]\d+)?\s*(gr|gram|g|kg|ml|liter|l|porsi|piring|mangkok|potong|buah|butir|slice|cup|piece|serving)s?\.?$/i, '')
-    .replace(/\s+\d+([.,]\d+)?$/i, ''); // Remove trailing numbers
+Return ONLY a JSON array, nothing else:`;
 
-  // Remove quantity words at the start (e.g., "1 porsi", "seporsi")
-  cleaned = cleaned
-    .replace(/^\d+\s*(porsi|piring|mangkok|potong|buah|butir)?\s+/i, '')
-    .replace(/^se(porsi|piring|mangkok|potong)\s+/i, '');
+  try {
+    const response = await callLLM(prompt, '', [], userId, 128, 0);
+    const parsed = parseJSON<string[]>(response);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed;
+    }
+  } catch (error) {
+    console.error('[FoodExtract] LLM extraction failed:', error);
+  }
 
-  // Trim and return
-  return cleaned.trim() || message.trim();
+  // Fallback: return the original message
+  return [message];
 }
 
 /**
@@ -529,15 +526,19 @@ export async function processFoodEstimate(
   let fatSecretResult = null;
   try {
     const { getBestFoodMatch } = await import('./fatSecret');
-    // Extract just the food name from the message for better FatSecret matching
-    const foodName = extractFoodNameForSearch(message);
-    console.log(`[FoodEstimate] Searching FatSecret for: "${foodName}" (from: "${message}")`);
 
-    fatSecretResult = await getBestFoodMatch(foodName);
-    if (fatSecretResult) {
-      console.log(`[FoodEstimate] FatSecret match: ${fatSecretResult.name} = ${fatSecretResult.caloriesPer100g || fatSecretResult.calories} kcal per ${fatSecretResult.caloriesPer100g ? '100g' : fatSecretResult.serving}`);
-    } else {
-      console.log(`[FoodEstimate] No FatSecret match for: ${foodName}`);
+    // Use LLM to extract food names from the message
+    const foodNames = await extractFoodNamesWithLLM(message, user.id);
+    console.log(`[FoodEstimate] Extracted food names: ${JSON.stringify(foodNames)} (from: "${message}")`);
+
+    // Search FatSecret for the first food item (primary food)
+    if (foodNames.length > 0) {
+      fatSecretResult = await getBestFoodMatch(foodNames[0]);
+      if (fatSecretResult) {
+        console.log(`[FoodEstimate] FatSecret match: ${fatSecretResult.name} = ${fatSecretResult.caloriesPer100g || fatSecretResult.calories} kcal per ${fatSecretResult.caloriesPer100g ? '100g' : fatSecretResult.serving}`);
+      } else {
+        console.log(`[FoodEstimate] No FatSecret match for: ${foodNames[0]}`);
+      }
     }
   } catch (error) {
     console.error('[FoodEstimate] FatSecret lookup failed:', error);
