@@ -486,6 +486,37 @@ export interface FoodEstimateResult {
 }
 
 /**
+ * Extract food name from user message for FatSecret lookup
+ * Removes common prefixes like "makan", "saya makan", quantities, etc.
+ * Examples:
+ *   "Saya makan nasi goreng 200gr" -> "nasi goreng"
+ *   "makan ayam goreng 1 potong" -> "ayam goreng"
+ *   "nasi padang" -> "nasi padang"
+ */
+function extractFoodNameForSearch(message: string): string {
+  let cleaned = message.toLowerCase().trim();
+
+  // Remove common Indonesian prefixes
+  cleaned = cleaned
+    .replace(/^(saya\s+)?(sudah\s+)?(baru\s+)?(habis\s+)?makan\s+/i, '')
+    .replace(/^(saya\s+)?(sudah\s+)?(baru\s+)?(habis\s+)?minum\s+/i, '')
+    .replace(/^(i\s+)?(just\s+)?(had\s+|ate\s+|eaten\s+)?/i, '');
+
+  // Remove quantities at the end (e.g., "200 gr", "1 porsi", "2 potong")
+  cleaned = cleaned
+    .replace(/\s+\d+([.,]\d+)?\s*(gr|gram|g|kg|ml|liter|l|porsi|piring|mangkok|potong|buah|butir|slice|cup|piece|serving)s?\.?$/i, '')
+    .replace(/\s+\d+([.,]\d+)?$/i, ''); // Remove trailing numbers
+
+  // Remove quantity words at the start (e.g., "1 porsi", "seporsi")
+  cleaned = cleaned
+    .replace(/^\d+\s*(porsi|piring|mangkok|potong|buah|butir)?\s+/i, '')
+    .replace(/^se(porsi|piring|mangkok|potong)\s+/i, '');
+
+  // Trim and return
+  return cleaned.trim() || message.trim();
+}
+
+/**
  * Process food estimate - user mentioned food they ate
  * Uses low temperature (0.3) for more accurate calculations
  */
@@ -498,11 +529,15 @@ export async function processFoodEstimate(
   let fatSecretResult = null;
   try {
     const { getBestFoodMatch } = await import('./fatSecret');
-    fatSecretResult = await getBestFoodMatch(message);
+    // Extract just the food name from the message for better FatSecret matching
+    const foodName = extractFoodNameForSearch(message);
+    console.log(`[FoodEstimate] Searching FatSecret for: "${foodName}" (from: "${message}")`);
+
+    fatSecretResult = await getBestFoodMatch(foodName);
     if (fatSecretResult) {
-      console.log(`[FoodEstimate] FatSecret match: ${fatSecretResult.name} = ${fatSecretResult.calories} kcal per ${fatSecretResult.serving}`);
+      console.log(`[FoodEstimate] FatSecret match: ${fatSecretResult.name} = ${fatSecretResult.caloriesPer100g || fatSecretResult.calories} kcal per ${fatSecretResult.caloriesPer100g ? '100g' : fatSecretResult.serving}`);
     } else {
-      console.log(`[FoodEstimate] No FatSecret match for: ${message}`);
+      console.log(`[FoodEstimate] No FatSecret match for: ${foodName}`);
     }
   } catch (error) {
     console.error('[FoodEstimate] FatSecret lookup failed:', error);
