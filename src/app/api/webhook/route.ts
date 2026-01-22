@@ -485,6 +485,14 @@ interface TelegramUpdate {
       mime_type?: string;
       file_size?: number;
     };
+    photo?: Array<{
+      file_id: string;
+      file_unique_id: string;
+      width: number;
+      height: number;
+      file_size?: number;
+    }>;
+    caption?: string; // Optional caption for photo
   };
 }
 
@@ -540,13 +548,58 @@ export async function POST(request: NextRequest) {
     // Parse the JSON data from Telegram
     const update: TelegramUpdate = await request.json();
 
-    // Check if this is a valid message update (text or voice)
-    if (!update.message || (!update.message.text && !update.message.voice)) {
+    // Check if this is a valid message update (text, voice, or photo)
+    if (!update.message || (!update.message.text && !update.message.voice && !update.message.photo)) {
       return NextResponse.json({ ok: true });
     }
 
     const chatId = update.message.chat.id;
     const languageCode = update.message.from?.language_code;
+
+    // Handle photo message - recognize food and estimate calories
+    if (update.message.photo) {
+      console.log('[PHOTO] Photo message received');
+
+      // Show typing indicator while processing
+      await sendChatAction(chatId, 'typing');
+
+      // Get the largest photo (last in array)
+      const photo = update.message.photo[update.message.photo.length - 1];
+      const caption = update.message.caption;
+
+      // Get user for logging
+      const userIdentifier = chatId.toString();
+      const userResult = await findOrCreateUser(userIdentifier);
+      const userId = userResult.success && userResult.data ? userResult.data.id : undefined;
+
+      // Recognize food from image
+      const { recognizeFoodFromImage } = await import('@/lib/services/imageRecognition');
+      const result = await recognizeFoodFromImage(photo.file_id, userId, caption);
+
+      if (!result.success) {
+        console.error('[PHOTO] Recognition failed:', result.error);
+        const errorMessage = result.message || '❌ Maaf, gagal memproses gambar. Silakan coba lagi.';
+        await sendTelegramMessage(chatId, errorMessage);
+        return NextResponse.json({ ok: true });
+      }
+
+      // Send the estimation result
+      const responseMessage = result.message || '❌ Tidak dapat mengenali makanan dalam gambar.';
+
+      // Include estimate data as hidden JSON for later extraction (for "Save?" flow)
+      const messageWithData = result.foods
+        ? `${responseMessage}\n<!--ESTIMATE:${JSON.stringify({ estimate: { items: result.foods.map(f => ({ ...f, source: 'ai' })) } })}-->`
+        : responseMessage;
+
+      // Log conversation
+      await Promise.all([
+        sendTelegramMessage(chatId, formatForMarkdownV2(responseMessage), 'MarkdownV2'),
+        logConversation(userIdentifier, 'incoming', caption ? `[PHOTO] ${caption}` : '[PHOTO]'),
+        logConversation(userIdentifier, 'outgoing', messageWithData),
+      ]);
+
+      return NextResponse.json({ ok: true });
+    }
 
     // Handle voice message - transcribe to text
     let messageText: string;
