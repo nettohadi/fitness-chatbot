@@ -14,6 +14,7 @@ import {
   X,
   Dumbbell,
   Utensils,
+  Settings,
 } from "lucide-react"
 import { useState } from "react"
 import ThemeToggle from "@/components/ThemeToggle"
@@ -47,6 +48,11 @@ const navItems = [
     name: "Analytics",
     href: "/admin/dashboard/analytics",
     icon: BarChart3,
+  },
+  {
+    name: "Settings",
+    href: "/admin/dashboard/settings",
+    icon: Settings,
   },
 ]
 

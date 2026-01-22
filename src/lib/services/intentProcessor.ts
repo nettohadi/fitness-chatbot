@@ -27,6 +27,7 @@ import {
   type Language,
 } from '@/lib/prompts';
 import { getBestFoodMatch, saveFoodCalorie, type FoodCalorieResult } from './foodCalorie';
+import { getFoodEstimateModel } from './settings';
 
 // Use OpenRouter for LLM calls
 const openrouter = new OpenAI({
@@ -52,6 +53,7 @@ const PRICING = {
 /**
  * Call LLM with system prompt and conversation history
  * @param temperature - Lower = more deterministic (good for calculations), default 0.7
+ * @param modelId - Optional model ID override (defaults to MODEL_ID)
  */
 async function callLLM(
   systemPrompt: string,
@@ -59,8 +61,10 @@ async function callLLM(
   history: CachedMessage[],
   userId: string,
   maxTokens: number = 512,
-  temperature: number = 0.7
+  temperature: number = 0.7,
+  modelId?: string
 ): Promise<string> {
+  const model = modelId || MODEL_ID;
   const messages: OpenAI.ChatCompletionMessageParam[] = [
     { role: 'system', content: systemPrompt },
     ...history.map((m) => ({
@@ -73,7 +77,7 @@ async function callLLM(
   const startTime = Date.now();
 
   const response = await openrouter.chat.completions.create({
-    model: MODEL_ID,
+    model,
     max_tokens: maxTokens,
     temperature,
     messages,
@@ -90,7 +94,7 @@ async function callLLM(
   // Log API call (async, non-blocking)
   logClaudeApiCall({
     userId,
-    model: response.model || MODEL_ID,
+    model: response.model || model,
     systemPrompt,
     messages: messages.slice(1), // Remove system message
     response: responseText,
@@ -565,8 +569,13 @@ export async function processFoodEstimate(
   }
 
   const systemPrompt = buildFoodEstimatorPrompt(user, cachedCalorieData.length > 0 ? cachedCalorieData : null);
+
+  // Get the model to use for food estimation from settings
+  const foodEstimateModelId = await getFoodEstimateModel();
+  console.log(`[FoodEstimate] Using model: ${foodEstimateModelId}`);
+
   // Low temperature for accurate calorie calculations
-  const response = await callLLM(systemPrompt, message, history, user.id, 512, 0.3);
+  const response = await callLLM(systemPrompt, message, history, user.id, 512, 0.3, foodEstimateModelId);
   const result = parseJSON<{ estimate: { items: FoodEstimateItem[] }; message: string }>(response);
 
   if (result && result.estimate) {

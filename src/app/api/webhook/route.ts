@@ -478,6 +478,13 @@ interface TelegramUpdate {
     };
     date: number;
     text?: string;
+    voice?: {
+      file_id: string;
+      file_unique_id: string;
+      duration: number; // Duration in seconds
+      mime_type?: string;
+      file_size?: number;
+    };
   };
 }
 
@@ -533,14 +540,40 @@ export async function POST(request: NextRequest) {
     // Parse the JSON data from Telegram
     const update: TelegramUpdate = await request.json();
 
-    // Check if this is a valid message update
-    if (!update.message || !update.message.text) {
+    // Check if this is a valid message update (text or voice)
+    if (!update.message || (!update.message.text && !update.message.voice)) {
       return NextResponse.json({ ok: true });
     }
 
     const chatId = update.message.chat.id;
-    const messageText = update.message.text.trim();
     const languageCode = update.message.from?.language_code;
+
+    // Handle voice message - transcribe to text
+    let messageText: string;
+    if (update.message.voice) {
+      console.log('[VOICE] Voice message received, duration:', update.message.voice.duration, 's');
+
+      // Show typing indicator while transcribing
+      await sendChatAction(chatId, 'typing');
+
+      // Transcribe voice message
+      const { transcribeVoiceMessage } = await import('@/lib/services/voiceTranscription');
+      const transcription = await transcribeVoiceMessage(update.message.voice.file_id);
+
+      if (!transcription.success || !transcription.text) {
+        console.error('[VOICE] Transcription failed:', transcription.error);
+        await sendTelegramMessage(
+          chatId,
+          '❌ Maaf, gagal memproses pesan suara. Silakan coba lagi atau ketik pesan Anda.'
+        );
+        return NextResponse.json({ ok: true });
+      }
+
+      messageText = transcription.text.trim();
+      console.log('[VOICE] Transcribed in', transcription.durationMs, 'ms:', messageText.substring(0, 100));
+    } else {
+      messageText = update.message.text!.trim();
+    }
 
     // Use chat ID as identifier
     const userIdentifier = chatId.toString();

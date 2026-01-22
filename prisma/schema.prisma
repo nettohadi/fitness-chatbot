@@ -127,6 +127,15 @@ model OtpSession {
   @@map("otp_sessions")
 }
 
+/// System settings for runtime configuration
+model SystemSetting {
+  key       String   @id @db.VarChar(100)
+  value     String   @db.Text
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("system_settings")
+}
+
 /// Food calorie database for consistent calorie estimation
 /// Uses pg_trgm for fuzzy matching on food names
 model FoodCalorie {
