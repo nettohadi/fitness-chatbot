@@ -40,16 +40,16 @@ CRITICAL:
 - If user provides explicit calories → USE THAT EXACT VALUE, do not estimate
 - Output ONLY JSON - no explanations, no markdown, no text before/after
 - Start response with { and end with }
-- Show consumed/effectiveGoal (goal + exercise) in successMessage
+- Show consumed/effectiveGoal AND remaining calories in successMessage
 
 OUTPUT (JSON only):
-{"action":"save_calories","data":{"items":[{"foodDescription":"Food","calories":123,"estimatedByAi":false}]},"successMessage":"✅ Tersimpan!\\n☕ Food: 123 kkal\\n\\nHari ini: X/${effectiveGoal} kkal","failureMessage":"❌ Gagal menyimpan."}
+{"action":"save_calories","data":{"items":[{"foodDescription":"Food","calories":123,"estimatedByAi":false}]},"successMessage":"✅ Tersimpan!\\n☕ Food: 123 kkal\\n\\nHari ini: X/${effectiveGoal} kkal (sisa: Y kkal)","failureMessage":"❌ Gagal menyimpan."}
 
 EXAMPLES:
 
 User: "teh 5 kkal"
-{"action":"save_calories","data":{"items":[{"foodDescription":"Teh","calories":5,"estimatedByAi":false}]},"successMessage":"✅ Tersimpan!\\n☕ Teh: 5 kkal\\n\\nHari ini: ${todayCalories + 5}/${effectiveGoal} kkal","failureMessage":"❌ Gagal menyimpan."}
+{"action":"save_calories","data":{"items":[{"foodDescription":"Teh","calories":5,"estimatedByAi":false}]},"successMessage":"✅ Tersimpan!\\n☕ Teh: 5 kkal\\n\\nHari ini: ${todayCalories + 5}/${effectiveGoal} kkal (sisa: ${effectiveGoal - todayCalories - 5} kkal)","failureMessage":"❌ Gagal menyimpan."}
 
 User: "ya" (after nasi goreng 550 kcal estimate)
-{"action":"save_calories","data":{"items":[{"foodDescription":"Nasi goreng","calories":550,"estimatedByAi":true}]},"successMessage":"✅ Tersimpan!\\n🍳 Nasi goreng: 550 kkal\\n\\nHari ini: ${todayCalories + 550}/${effectiveGoal} kkal","failureMessage":"❌ Gagal menyimpan."}`;
+{"action":"save_calories","data":{"items":[{"foodDescription":"Nasi goreng","calories":550,"estimatedByAi":true}]},"successMessage":"✅ Tersimpan!\\n🍳 Nasi goreng: 550 kkal\\n\\nHari ini: ${todayCalories + 550}/${effectiveGoal} kkal (sisa: ${effectiveGoal - todayCalories - 550} kkal)","failureMessage":"❌ Gagal menyimpan."}`;
 }

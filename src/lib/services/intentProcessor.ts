@@ -40,12 +40,13 @@ const openrouter = new OpenAI({
 const MODEL_ID = process.env.LLM_MODEL_ID || 'google/gemini-2.0-flash-001';
 
 // Pricing per 1M tokens (for cost calculation) - update when changing models
-// Gemini 2.0 Flash: input $0.10, output $0.40
+// Gemini 2.5 Flash: input $0.30, output $2.50
+// Gemini 2.5 Flash-Lite: input $0.10, output $0.40
 // GPT-4o mini: input $0.15, output $0.60
 // Claude 3.5 Haiku: input $0.80, output $4.00
 const PRICING = {
-  input: parseFloat(process.env.LLM_PRICING_INPUT || '0.10'),
-  output: parseFloat(process.env.LLM_PRICING_OUTPUT || '0.40'),
+  input: parseFloat(process.env.LLM_PRICING_INPUT || '0.30'),
+  output: parseFloat(process.env.LLM_PRICING_OUTPUT || '2.50'),
 };
 
 /**
@@ -531,25 +532,31 @@ Return ONLY a JSON array, nothing else:`;
 export async function processFoodEstimate(
   message: string,
   user: PromptUser,
-  history: CachedMessage[]
+  history: CachedMessage[],
+  extractedFoods?: string[] // Optional: food names extracted by intent detector
 ): Promise<FoodEstimateResult> {
   // Look up cached calorie data for consistent estimation
-  let cachedCalorieData: FoodCalorieResult | null = null;
-  let extractedFoodNames: string[] = [];
+  const cachedCalorieData: FoodCalorieResult[] = [];
+  let foodNames: string[] = extractedFoods || [];
 
   try {
-    // Use LLM to extract food names from the message
-    extractedFoodNames = await extractFoodNamesWithLLM(message, user.id);
-    console.log(`[FoodEstimate] Extracted food names: ${JSON.stringify(extractedFoodNames)} (from: "${message}")`);
+    // If no foods provided by intent detector, fall back to LLM extraction
+    if (foodNames.length === 0) {
+      foodNames = await extractFoodNamesWithLLM(message, user.id);
+      console.log(`[FoodEstimate] Extracted food names via LLM: ${JSON.stringify(foodNames)} (from: "${message}")`);
+    } else {
+      console.log(`[FoodEstimate] Using pre-extracted food names: ${JSON.stringify(foodNames)}`);
+    }
 
-    // Search cached calories for the first food item (primary food)
-    if (extractedFoodNames.length > 0) {
-      console.log(`[FoodEstimate] Looking up cached calories for: ${extractedFoodNames[0]}`);
-      cachedCalorieData = await getBestFoodMatch(extractedFoodNames[0]);
-      if (cachedCalorieData) {
-        console.log(`[FoodEstimate] Cache hit: ${cachedCalorieData.name} = ${cachedCalorieData.caloriesPer100g} kcal/100g (similarity: ${cachedCalorieData.similarity?.toFixed(2) || '1.00'})`);
+    // Search cached calories for ALL extracted food items
+    for (const foodName of foodNames) {
+      console.log(`[FoodEstimate] Looking up cached calories for: ${foodName}`);
+      const match = await getBestFoodMatch(foodName);
+      if (match) {
+        console.log(`[FoodEstimate] Cache hit: ${match.name} = ${match.caloriesPer100g} kcal/100g (similarity: ${match.similarity?.toFixed(2) || '1.00'})`);
+        cachedCalorieData.push(match);
       } else {
-        console.log(`[FoodEstimate] No cached data for: ${extractedFoodNames[0]}`);
+        console.log(`[FoodEstimate] No cached data for: ${foodName}`);
       }
     }
   } catch (error) {
@@ -557,7 +564,7 @@ export async function processFoodEstimate(
     // Continue without cached data - LLM will estimate
   }
 
-  const systemPrompt = buildFoodEstimatorPrompt(user, cachedCalorieData);
+  const systemPrompt = buildFoodEstimatorPrompt(user, cachedCalorieData.length > 0 ? cachedCalorieData : null);
   // Low temperature for accurate calorie calculations
   const response = await callLLM(systemPrompt, message, history, user.id, 512, 0.3);
   const result = parseJSON<{ estimate: { items: FoodEstimateItem[] }; message: string }>(response);

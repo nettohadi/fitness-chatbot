@@ -104,9 +104,13 @@ CONVERSATION (use for all of these):
 - Out of scope: medical advice, diet plans, recipes, health conditions
 - Unknown/unclear requests
 
+FOOD NAME EXTRACTION (for food_estimate intent ONLY):
+When intent is "food_estimate", also extract food names (without quantities) into "foods" array.
+Example: "makan nasi goreng 200gr dan ayam bakar 1 potong" → foods: ["nasi goreng", "ayam bakar"]
+
 OUTPUT FORMATS (raw JSON only):
 {"intent":"conversation","language":"id"}
-{"intent":"food_estimate","language":"en"}
+{"intent":"food_estimate","language":"en","foods":["pizza"]}
 {"intent":"food_logging","language":"id"}
 {"intent":"food_update","language":"en"}
 {"intent":"food_update","period":"yesterday","language":"id"}
@@ -122,7 +126,8 @@ OUTPUT FORMATS (raw JSON only):
 
 EXAMPLES:
 "makan pizza" → {"intent":"conversation","language":"id"} (no quantity - needs clarification)
-"I ate 2 slices pizza" → {"intent":"food_estimate","language":"en"} (has quantity, no calories)
+"I ate 2 slices pizza" → {"intent":"food_estimate","language":"en","foods":["pizza"]} (has quantity, no calories)
+"makan nasi goreng 200gr dan ayam bakar 1 potong" → {"intent":"food_estimate","language":"id","foods":["nasi goreng","ayam bakar"]}
 "500 kkal nasi goreng" → {"intent":"food_logging","language":"id"} (has explicit calories)
 "ya" (after food estimate) → {"intent":"food_logging","language":"id"} (confirmation)
 "hapus nasi" → {"intent":"food_update","language":"id"}

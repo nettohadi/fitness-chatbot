@@ -26,6 +26,7 @@ export interface IntentResult {
   message?: string; // Only present for 'conversation' intent
   period?: 'today' | 'yesterday' | 'week' | 'month' | 'specific'; // Only present for 'summary' intent
   date?: string; // Only present when period is 'specific' (e.g., "2025-01-10")
+  foods?: string[]; // Only present for 'food_estimate' intent - extracted food names
 }
 
 // Food item in an estimate

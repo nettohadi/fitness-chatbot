@@ -93,7 +93,8 @@ async function handleMessageWithIntentRouting(
 
     case 'food_estimate': {
       // "I ate rice" → Estimate calories, ask to save
-      const result = await processFoodEstimate(messageText, promptUser, conversationHistory);
+      // Pass extracted foods from intent detector to skip separate LLM call
+      const result = await processFoodEstimate(messageText, promptUser, conversationHistory, intentResult.foods);
       // Include estimate data as hidden JSON for later extraction
       const messageWithData = result.estimate
         ? `${result.message}\n<!--ESTIMATE:${JSON.stringify({ estimate: result.estimate })}-->`
