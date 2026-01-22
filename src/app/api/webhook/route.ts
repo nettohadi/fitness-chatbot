@@ -572,9 +572,12 @@ export async function POST(request: NextRequest) {
       const userResult = await findOrCreateUser(userIdentifier);
       const userId = userResult.success && userResult.data ? userResult.data.id : undefined;
 
+      // Get conversation history for language detection
+      const conversationHistory = await getConversationContext(userIdentifier);
+
       // Recognize food from image
       const { recognizeFoodFromImage } = await import('@/lib/services/imageRecognition');
-      const result = await recognizeFoodFromImage(photo.file_id, userId, caption);
+      const result = await recognizeFoodFromImage(photo.file_id, userId, caption, conversationHistory, languageCode);
 
       if (!result.success) {
         console.error('[PHOTO] Recognition failed:', result.error);

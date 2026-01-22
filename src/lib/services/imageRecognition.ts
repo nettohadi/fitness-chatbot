@@ -68,13 +68,69 @@ async function downloadTelegramImage(fileId: string): Promise<{ base64: string; 
   return { base64, mimeType };
 }
 
+interface ConversationMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * Detect language from multiple sources (priority order):
+ * 1. Caption language
+ * 2. Conversation history
+ * 3. Telegram language code
+ * 4. Default to Indonesian
+ */
+function detectLanguage(
+  caption?: string,
+  history?: ConversationMessage[],
+  telegramLangCode?: string
+): string {
+  // Check caption first
+  if (caption) {
+    const captionLower = caption.toLowerCase();
+    const englishWords = ['ate', 'eat', 'had', 'this is', 'lunch', 'dinner', 'breakfast'];
+    const indonesianWords = ['makan', 'ini', 'sarapan', 'makan siang', 'makan malam'];
+
+    const hasEnglish = englishWords.some(w => captionLower.includes(w));
+    const hasIndonesian = indonesianWords.some(w => captionLower.includes(w));
+
+    if (hasIndonesian && !hasEnglish) return 'id';
+    if (hasEnglish && !hasIndonesian) return 'en';
+  }
+
+  // Check conversation history
+  if (history && history.length > 0) {
+    const recentMessages = history.slice(-6).map(m => m.content.toLowerCase()).join(' ');
+
+    const englishIndicators = ['hello', 'hi ', 'yes', 'no ', 'please', 'thank', 'what', 'how ', 'save', 'delete'];
+    const englishCount = englishIndicators.filter(w => recentMessages.includes(w)).length;
+
+    const indonesianIndicators = ['halo', 'hai', 'ya ', 'tidak', 'tolong', 'terima', 'apa', 'bagaimana', 'simpan', 'hapus'];
+    const indonesianCount = indonesianIndicators.filter(w => recentMessages.includes(w)).length;
+
+    if (englishCount > indonesianCount) return 'en';
+    if (indonesianCount > englishCount) return 'id';
+  }
+
+  // Fallback to Telegram language code
+  if (telegramLangCode) {
+    if (telegramLangCode.startsWith('en')) return 'en';
+    if (telegramLangCode.startsWith('id')) return 'id';
+  }
+
+  // Default to Indonesian
+  return 'id';
+}
+
 /**
  * Recognize food from image and estimate calories
  */
 export async function recognizeFoodFromImage(
   fileId: string,
   userId?: string,
-  caption?: string
+  caption?: string,
+  conversationHistory?: ConversationMessage[],
+  telegramLangCode?: string
 ): Promise<FoodImageResult> {
   const startTime = Date.now();
 
@@ -93,21 +149,36 @@ export async function recognizeFoodFromImage(
     const modelId = await getFoodEstimateModel();
     console.log('[ImageRecognition] Using model:', modelId);
 
+    // Detect language from caption, history, or Telegram language code
+    const detectedLang = detectLanguage(caption, conversationHistory, telegramLangCode);
+    const langInstruction = detectedLang === 'en'
+      ? 'Respond in ENGLISH.'
+      : 'Respond in INDONESIAN (Bahasa Indonesia).';
+    console.log('[ImageRecognition] Detected language:', detectedLang);
+
     // Build the prompt
     const systemPrompt = `You are a food calorie estimator. Analyze the food image and estimate calories.
+
+LANGUAGE: ${langInstruction}
 
 RULES:
 1. Identify all visible food items
 2. Estimate portion size based on visual cues (plate size, utensils, etc.)
 3. Calculate calories: portion × calories per 100g
 4. Output RAW JSON only - no markdown, no code blocks
-5. If no food visible, return {"success":false,"message":"No food detected"}
+5. If no food visible, return a helpful message explaining what you see instead
 
 OUTPUT FORMAT (JSON only):
+
+For food detected:
 {"foods":[{"food":"Nasi putih","calories":195,"portion":"150g","calPer100g":130}],"message":"🍚 Nasi putih\\n150g × 130/100g = 195 kcal\\n\\nTotal: 195 kcal\\nSimpan?"}
 
 For multiple foods:
-{"foods":[{"food":"Nasi putih","calories":195,"portion":"150g","calPer100g":130},{"food":"Ayam goreng","calories":130,"portion":"50g","calPer100g":260}],"message":"🍚 Nasi: 150g × 130/100g = 195 kcal\\n🍗 Ayam goreng: 50g × 260/100g = 130 kcal\\n\\nTotal: 325 kcal\\nSimpan?"}`;
+{"foods":[{"food":"Nasi putih","calories":195,"portion":"150g","calPer100g":130},{"food":"Ayam goreng","calories":130,"portion":"50g","calPer100g":260}],"message":"🍚 Nasi: 150g × 130/100g = 195 kcal\\n🍗 Ayam goreng: 50g × 260/100g = 130 kcal\\n\\nTotal: 325 kcal\\nSimpan?"}
+
+For NO food detected - be helpful and describe what you see:
+Indonesian: {"success":false,"message":"📷 Saya melihat [deskripsi gambar], tapi tidak ada makanan yang terdeteksi.\\n\\nUntuk menghitung kalori, kirim foto makanan Anda ya! 🍽️"}
+English: {"success":false,"message":"📷 I see [image description], but no food detected.\\n\\nTo calculate calories, please send a photo of your food! 🍽️"}`;
 
     const userMessage = caption
       ? `Analyze this food image. User caption: "${caption}"`
