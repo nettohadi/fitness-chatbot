@@ -56,12 +56,12 @@ FOOD:
 EXERCISE:
 - exercise_estimate = Has exercise type + duration, NO explicit calories burned
   Examples: "lari 30 menit", "cycling 1 hour", "gym 45 min"
-- exercise_logging = Has exercise type + duration + EXPLICIT calories burned
+- exercise_logging = Has exercise type + duration + EXPLICIT calories burned (ALL THREE REQUIRED!)
   Examples: "lari 30 menit 300 kcal", "cycling 1 hour burned 500 cal"
 - exercise_update = Edit/delete/update existing entries
   Examples: "hapus olahraga", "edit lari jadi 45 menit"
-- conversation = Incomplete info OR needs clarification
-  Examples: "tadi lari" (no duration), "I exercised" (no specifics)
+- conversation = MISSING duration - needs clarification (even if calories are provided!)
+  Examples: "tadi lari" (no duration), "I exercised" (no specifics), "sepeda 400 kkal" (has calories but NO duration - STILL needs clarification!)
 
 CONFIRMATION DETECTION (check previous assistant message):
 If previous message asked "Simpan?" OR "Save?" OR "Mau saya catat?":
@@ -128,9 +128,12 @@ EXAMPLES:
 "hapus nasi" → {"intent":"food_update","language":"id"}
 "hapus makanan kemarin" → {"intent":"food_update","period":"yesterday","language":"id"}
 "tadi lari" → {"intent":"conversation","language":"id"} (no duration - needs clarification)
+"sepeda 400 kkal" → {"intent":"conversation","language":"id"} (has calories but NO duration - needs clarification!)
+"olahraga membakar 500 kcal" → {"intent":"conversation","language":"id"} (has calories but NO duration - needs clarification!)
 "lari 30 menit" → {"intent":"exercise_estimate","language":"id"} (has duration, no calories)
 "lari 30 menit 300 kcal" → {"intent":"exercise_logging","language":"id"} (has duration AND calories)
 "sepeda 1 jam burned 400 cal" → {"intent":"exercise_logging","language":"id"} (has duration AND calories)
+"sepeda statis 60 menit 426 kkal" → {"intent":"exercise_logging","language":"id"} (has duration AND calories)
 "ok simpan" (after exercise) → {"intent":"exercise_logging","language":"id"} (confirmation)
 "hapus olahraga" → {"intent":"exercise_update","language":"id"}
 "hapus olahraga kemarin" → {"intent":"exercise_update","period":"yesterday","language":"id"}
