@@ -868,9 +868,9 @@ export async function processSummary(
   summaryData: SummaryData
 ): Promise<string> {
   const systemPrompt = buildSummaryPrompt(user, summaryData);
-  // Limit history to 4 messages to avoid confusion
-  const limitedHistory = history.slice(-4);
-  const response = await callLLM(systemPrompt, message, limitedHistory, user.id, 1024);
+  // No history needed - all summary data comes from system prompt
+  // History only causes confusion (e.g., yesterday's data vs today's data)
+  const response = await callLLM(systemPrompt, message, [], user.id, 1024);
 
   // Summary returns plain text, no JSON parsing needed
   return response;
