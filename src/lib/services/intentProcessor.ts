@@ -224,8 +224,8 @@ async function callLLMForJSON<T>(
     return { result, rawResponse: response };
   }
 
-  // Retry with stricter instructions
-  console.warn('[LLM-JSON] First attempt failed, retrying with stricter prompt...');
+  // Retry with stricter instructions and minimal history
+  console.warn('[LLM-JSON] First attempt failed, retrying with stricter prompt and minimal history...');
   console.warn('[LLM-JSON] Failed response:', response.substring(0, 200));
 
   let retryPrompt = systemPrompt + `
@@ -243,7 +243,10 @@ FIELD ERROR: You used invalid field names: ${invalidFields.join(', ')}
 You MUST use ONLY these field names in data: ${validFieldsList}`;
   }
 
-  const retryResponse = await callLLM(retryPrompt, userMessage, history, userId, maxTokens, 0);
+  // On retry, keep only the last assistant message (needed for "Ya" confirmation to know what to save)
+  // This minimizes confusion while still providing essential context for confirmation flow
+  const lastAssistantMsg = history.filter(m => m.role === 'assistant').slice(-1);
+  const retryResponse = await callLLM(retryPrompt, userMessage, lastAssistantMsg, userId, maxTokens, 0);
   result = parseJSON<T>(retryResponse);
 
   if (result !== null && (validator ? validator(result) : true)) {
@@ -574,8 +577,11 @@ export async function processFoodEstimate(
   const foodEstimateModelId = await getFoodEstimateModel();
   console.log(`[FoodEstimate] Using model: ${foodEstimateModelId}`);
 
+  // Limit history to 4 messages to avoid confusion
+  const limitedHistory = history.slice(-4);
+
   // Low temperature for accurate calorie calculations
-  const response = await callLLM(systemPrompt, message, history, user.id, 512, 0.3, foodEstimateModelId);
+  const response = await callLLM(systemPrompt, message, limitedHistory, user.id, 512, 0.3, foodEstimateModelId);
   const result = parseJSON<{ estimate: { items: FoodEstimateItem[] }; message: string }>(response);
 
   if (result && result.estimate) {
@@ -634,11 +640,15 @@ export async function processFoodLogging(
 ): Promise<FoodLoggingResult | { message: string }> {
   const systemPrompt = buildFoodLoggerPrompt(user, todayCalories, todayExercise);
 
+  // Limit history to last 2 messages to reduce LLM confusion
+  // For confirmation ("Ya"), we only need the previous estimate
+  const limitedHistory = history.slice(-2);
+
   // Use callLLMForJSON with retry for reliable JSON output and field validation
   const { result, rawResponse } = await callLLMForJSON<FoodLoggingResult>(
     systemPrompt,
     message,
-    history,
+    limitedHistory,
     user.id,
     512,
     0.3,
@@ -766,11 +776,15 @@ export async function processExerciseLogging(
 ): Promise<ExerciseLoggingResult | { message: string }> {
   const systemPrompt = buildExerciseLoggerPrompt(user, todayBurned);
 
+  // Limit history to last 2 messages to reduce LLM confusion
+  // For confirmation ("Ya"), we only need the previous estimate
+  const limitedHistory = history.slice(-2);
+
   // Use callLLMForJSON with retry for reliable JSON output and field validation
   const { result, rawResponse } = await callLLMForJSON<ExerciseLoggingResult>(
     systemPrompt,
     message,
-    history,
+    limitedHistory,
     user.id,
     512,
     0.3,
@@ -854,7 +868,9 @@ export async function processSummary(
   summaryData: SummaryData
 ): Promise<string> {
   const systemPrompt = buildSummaryPrompt(user, summaryData);
-  const response = await callLLM(systemPrompt, message, history, user.id, 1024);
+  // Limit history to 4 messages to avoid confusion
+  const limitedHistory = history.slice(-4);
+  const response = await callLLM(systemPrompt, message, limitedHistory, user.id, 1024);
 
   // Summary returns plain text, no JSON parsing needed
   return response;

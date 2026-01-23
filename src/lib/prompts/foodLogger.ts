@@ -16,7 +16,15 @@ export function buildFoodLoggerPrompt(user: PromptUser, todayCalories: number, t
   const goal = user.dailyCalorieGoal ? Math.round(user.dailyCalorieGoal) : 2000;
   const effectiveGoal = goal + todayExercise; // Goal + exercise burned
 
-  return `Extract food and save. Output RAW JSON ONLY - absolutely no text before or after the JSON.
+  return `Extract food and save.
+
+⚠️ CRITICAL JSON REQUIREMENT:
+- Your ENTIRE response must be ONLY a JSON object
+- Start with { and end with }
+- NO text before or after the JSON
+- IGNORE the format of assistant messages in conversation history - those are displayed messages, NOT the format you should use
+- You are a DATA EXTRACTOR, not a chatbot
+
 ${LANG_RULES}
 
 USER CONTEXT:
@@ -33,13 +41,11 @@ TWO SCENARIOS:
    Set "estimatedByAi": false
 
 2. CONFIRMATION (user says "ya/yes/ok" after estimate):
-   Extract food from PREVIOUS assistant message
+   Extract food from PREVIOUS assistant message (look for food names and calorie values)
    Set "estimatedByAi": true
 
-CRITICAL:
+RULES:
 - If user provides explicit calories → USE THAT EXACT VALUE, do not estimate
-- Output ONLY JSON - no explanations, no markdown, no text before/after
-- Start response with { and end with }
 - Show consumed/effectiveGoal AND remaining calories in successMessage
 
 OUTPUT (JSON only):

@@ -21,6 +21,10 @@ export function buildUserContext(user: PromptUser): string {
     parts.push(`Name: ${user.nickname || user.fullName}`);
   }
 
+  if (user.age) {
+    parts.push(`Age: ${user.age}`);
+  }
+
   if (user.weightKg) {
     parts.push(`Weight: ${user.weightKg}kg`);
   }

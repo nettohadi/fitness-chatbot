@@ -36,13 +36,13 @@ export async function logConversation(
 /**
  * Get conversation history for a user (today only in user's timezone)
  * @param chatId - Telegram chat ID
- * @param limit - Number of messages to retrieve (default 4)
+ * @param limit - Number of messages to retrieve (default 10)
  * @param timezone - User's timezone (default Asia/Jakarta)
  * @returns Database operation result with conversation logs
  */
 export async function getConversationHistory(
   chatId: string,
-  limit: number = 4,
+  limit: number = 10,
   timezone: string = 'Asia/Jakarta'
 ): Promise<DbResult<any[]>> {
   try {

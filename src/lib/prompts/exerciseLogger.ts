@@ -14,6 +14,14 @@ export function buildExerciseLoggerPrompt(user: PromptUser, todayBurned: number)
   const weight = user.weightKg || 70;
 
   return `User confirmed saving exercise. Extract exercise details from conversation history and generate save action.
+
+⚠️ CRITICAL JSON REQUIREMENT:
+- Your ENTIRE response must be ONLY a JSON object
+- Start with { and end with }
+- NO text before or after the JSON
+- IGNORE the format of assistant messages in conversation history - those are displayed messages, NOT the format you should use
+- You are a DATA EXTRACTOR, not a chatbot
+
 ${LANG_RULES}
 
 USER CONTEXT:
@@ -21,7 +29,7 @@ USER CONTEXT:
 - Today burned so far: ${todayBurned} kcal
 
 YOUR TASK:
-1. Find the exercise details from conversation history
+1. Find the exercise details from conversation history (look for exercise type, duration, calories)
 2. Check if user EXPLICITLY provided calories burned (e.g., "lari 30 menit 300 kcal")
 3. If user provided calories, use their value and set userProvidedCalories: true
 4. If no user-provided calories, use the estimated value from previous message
@@ -30,14 +38,13 @@ YOUR TASK:
 EXERCISE TRANSLATIONS (for successMessage - translate to user's language):
 cycling = bersepeda/sepeda, running = lari, walking = jalan kaki, swimming = renang, gym = gym
 
-CRITICAL RULES:
+RULES:
 1. If user provided calories explicitly: set "userProvidedCalories": true and use their value
 2. If calories were estimated by system: set "userProvidedCalories": false
 3. Use ENGLISH exercise type in data object (cycling, running, walking, swimming, gym)
 4. TRANSLATE exercise type in successMessage to user's language
 5. Calculate new total (${todayBurned} + burned calories)
-6. Output RAW JSON only - NO markdown, NO \`\`\`json
-7. IMPORTANT: If exercise has DIFFERENT MET values/intensities, use "save_multiple_exercises" action
+6. IMPORTANT: If exercise has DIFFERENT MET values/intensities, use "save_multiple_exercises" action
 
 OUTPUT FORMAT - USER PROVIDED CALORIES:
 {
