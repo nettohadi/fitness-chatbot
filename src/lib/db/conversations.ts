@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { DbResult } from '@/types';
+import { getLocalTodayAsDate } from '@/lib/utils/timezone';
 
 /**
  * Log a conversation message
@@ -33,19 +34,27 @@ export async function logConversation(
 }
 
 /**
- * Get conversation history for a user
+ * Get conversation history for a user (today only in user's timezone)
  * @param chatId - Telegram chat ID
- * @param limit - Number of messages to retrieve
+ * @param limit - Number of messages to retrieve (default 4)
+ * @param timezone - User's timezone (default Asia/Jakarta)
  * @returns Database operation result with conversation logs
  */
 export async function getConversationHistory(
   chatId: string,
-  limit: number = 50
+  limit: number = 4,
+  timezone: string = 'Asia/Jakarta'
 ): Promise<DbResult<any[]>> {
   try {
+    // Get start of today in user's timezone
+    const today = getLocalTodayAsDate(timezone);
+
     const logs = await prisma.conversationLog.findMany({
       where: {
         phoneNumber: chatId,
+        createdAt: {
+          gte: today,
+        },
       },
       orderBy: {
         createdAt: 'desc',

@@ -29,24 +29,26 @@ export function addMessageToCache(
     timestamp: new Date(),
   });
 
-  // Keep only last 10 messages
-  if (messages.length > 10) {
-    messages = messages.slice(-10);
+  // Keep only last 4 messages
+  if (messages.length > 4) {
+    messages = messages.slice(-4);
   }
 
   conversationCache.set(chatId, messages);
 }
 
 /**
- * Get conversation history from database
+ * Get conversation history from database (today only in user's timezone)
  * Note: Must be called BEFORE logging the current incoming message to avoid duplication
  * @param chatId - User identifier (phone number)
+ * @param timezone - User's timezone (default Asia/Jakarta)
  */
 export async function getConversationContext(
-  chatId: string
+  chatId: string,
+  timezone: string = 'Asia/Jakarta'
 ): Promise<CachedMessage[]> {
   const { getConversationHistory } = await import('@/lib/db/conversations');
-  const result = await getConversationHistory(chatId, 10);
+  const result = await getConversationHistory(chatId, 4, timezone);
 
   if (!result.success || !result.data) {
     return [];

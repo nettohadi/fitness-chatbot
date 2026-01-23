@@ -571,9 +571,10 @@ export async function POST(request: NextRequest) {
       const userIdentifier = chatId.toString();
       const userResult = await findOrCreateUser(userIdentifier);
       const userId = userResult.success && userResult.data ? userResult.data.id : undefined;
+      const photoUserTimezone = userResult.success && userResult.data ? getUserTimezone(userResult.data) : 'Asia/Jakarta';
 
-      // Get conversation history for language detection
-      const conversationHistory = await getConversationContext(userIdentifier);
+      // Get conversation history for language detection (today only in user's timezone)
+      const conversationHistory = await getConversationContext(userIdentifier, photoUserTimezone);
 
       // Recognize food from image
       const { recognizeFoodFromImage } = await import('@/lib/services/imageRecognition');
@@ -663,7 +664,8 @@ export async function POST(request: NextRequest) {
 
     // Get conversation history BEFORE logging the current message
     // This prevents the current message from appearing in history (avoiding duplication)
-    const conversationHistory = await getConversationContext(userIdentifier);
+    // Filter to today's messages only in user's timezone
+    const conversationHistory = await getConversationContext(userIdentifier, userTimezone);
 
     // NEW INTENT-BASED ROUTING (feature flag controlled)
     if (USE_INTENT_ROUTING) {
