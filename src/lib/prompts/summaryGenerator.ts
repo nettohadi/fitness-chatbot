@@ -68,7 +68,12 @@ RULES:
 - 🍽️=food, 🏃=exercise, 📉=deficit
 - Positive deficit = weight loss (good!), negative = surplus
 - Add 1-2 sentences of encouragement
-- Be brief!`;
+- Be brief!
+
+⚠️ FORBIDDEN - NEVER SAY THESE (you are showing a summary, NOT saving data):
+- "tersimpan" / "saved" / "dicatat" / "recorded" / "logged"
+- "sudah saya simpan" / "sudah dicatat" / "I've logged"
+- Any confirmation that data was saved - you are ONLY showing a summary`;
   }
 
   // For today/yesterday/specific: show food and exercise details
@@ -129,5 +134,10 @@ RULES:
 - Translate all labels to user's language
 - Positive deficit = weight loss (good!), negative = surplus
 - Add 1-2 sentences of encouragement
-- Be brief!`;
+- Be brief!
+
+⚠️ FORBIDDEN - NEVER SAY THESE (you are showing a summary, NOT saving data):
+- "tersimpan" / "saved" / "dicatat" / "recorded" / "logged"
+- "sudah saya simpan" / "sudah dicatat" / "I've logged"
+- Any confirmation that data was saved - you are ONLY showing a summary`;
 }
