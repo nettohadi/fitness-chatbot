@@ -63,8 +63,17 @@ EXERCISE:
 - conversation = MISSING duration - needs clarification (even if calories are provided!)
   Examples: "tadi lari" (no duration), "I exercised" (no specifics), "sepeda 400 kkal" (has calories but NO duration - STILL needs clarification!)
 
+QUANTITY/DURATION FOLLOW-UP (check previous assistant message):
+If previous message asked for food quantity (e.g., "berapa porsi?", "berapa gram?", "how much?", "berapa banyak?"):
+  - If user provides quantity/portion (e.g., "2 porsi", "90ml", "3 slices", "200gr", just a number) → food_estimate
+  - The food name is in the previous assistant message, not the user's response
+  - Example: Assistant asks "berapa porsi es teh?", user says "90 ml" → food_estimate
+
+If previous message asked for exercise duration (e.g., "berapa menit?", "how long?", "berapa lama?"):
+  - If user provides duration (e.g., "30 menit", "1 hour", "45 min", just a number) → exercise_estimate
+
 CONFIRMATION DETECTION (check previous assistant message):
-If previous message asked "Simpan?" OR "Save?" OR "Mau saya catat?":
+If previous message contains "Simpan?" OR "Save?" OR "Mau saya catat?" OR shows a calorie estimate:
   YES words: yes/ya/iya/yup/ok/oke/simpan/catat/save/lanjut/gas/betul/sip/boleh
   - If about FOOD → food_logging
   - If about EXERCISE → exercise_logging

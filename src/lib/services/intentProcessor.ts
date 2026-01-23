@@ -388,10 +388,11 @@ export async function detectIntent(
 ): Promise<IntentResult> {
   const systemPrompt = buildIntentDetectorPrompt();
 
-  // Only pass last 1 message for confirmation detection (e.g., "ya" after "Simpan?")
-  // - Confirmations only need the last assistant message to see "Simpan?" prompt
-  // - User's previous messages can confuse intent (e.g., repeated questions after wrong answers)
-  const limitedHistory = history.slice(-1);
+  // Pass last 4 messages for better context:
+  // - Confirmations need the last assistant message to see "Simpan?" prompt
+  // - Quantity follow-ups need context about what food/exercise was mentioned
+  // - Handles cases where user has back-and-forth before providing quantity
+  const limitedHistory = history.slice(-4);
 
   // Use callLLMForJSON with retry for reliable JSON output
   const { result } = await callLLMForJSON<IntentResult>(
