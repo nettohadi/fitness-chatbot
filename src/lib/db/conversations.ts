@@ -34,6 +34,22 @@ export async function logConversation(
 }
 
 /**
+ * Log a conversation pair (incoming + outgoing) sequentially
+ * This ensures proper ordering in the database (incoming always before outgoing)
+ * @param chatId - Telegram chat ID
+ * @param incoming - User's incoming message
+ * @param outgoing - Bot's outgoing response
+ */
+export async function logConversationPair(
+  chatId: string,
+  incoming: string,
+  outgoing: string
+): Promise<void> {
+  await logConversation(chatId, 'incoming', incoming);
+  await logConversation(chatId, 'outgoing', outgoing);
+}
+
+/**
  * Get conversation history for a user (today only in user's timezone)
  * @param chatId - Telegram chat ID
  * @param limit - Number of messages to retrieve (default 10)
@@ -56,9 +72,10 @@ export async function getConversationHistory(
           gte: today,
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+      orderBy: [
+        { createdAt: 'desc' },
+        { id: 'desc' }, // Secondary sort for consistent order when timestamps match
+      ],
       take: limit,
     });
 
