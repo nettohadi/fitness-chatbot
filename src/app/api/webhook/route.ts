@@ -56,6 +56,39 @@ import type { SummaryData } from '@/lib/prompts';
 const USE_INTENT_ROUTING = process.env.USE_INTENT_ROUTING === 'true';
 
 /**
+ * Extract pending action from conversation history
+ * Looks for <!--PENDING:{...}--> tag in previous assistant message
+ */
+function extractPendingAction(history: any[]): any | null {
+  // Look through history backwards for the last assistant message with pending action
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i];
+    if (msg.role === 'assistant') {
+      const match = msg.content.match(/<!--PENDING:(.*?)-->/);
+      if (match) {
+        try {
+          return JSON.parse(match[1]);
+        } catch (e) {
+          console.error('[PENDING] Failed to parse pending action:', e);
+          return null;
+        }
+      }
+      // Only check the last assistant message
+      break;
+    }
+  }
+  return null;
+}
+
+/**
+ * Check if user message is a confirmation (yes/ya/ok)
+ */
+function isConfirmation(message: string): boolean {
+  const confirmWords = /^(yes|ya|iya|yup|ok|oke|yakin|sure|betul|sip|boleh)$/i;
+  return confirmWords.test(message.trim());
+}
+
+/**
  * Handle message using intent-based routing (new architecture)
  * Flow: Profile pre-check → Intent detection → Specialized processor
  */
@@ -134,6 +167,20 @@ async function handleMessageWithIntentRouting(
     }
 
     case 'food_update': {
+      // Check if user is confirming a pending delete/update action
+      if (isConfirmation(messageText)) {
+        const pendingAction = extractPendingAction(conversationHistory);
+        if (pendingAction && (pendingAction.action === 'delete_calories' || pendingAction.action === 'update_calories')) {
+          console.log('[FOOD-UPDATE] Executing pending action:', pendingAction.action);
+          const successMsg = language === 'id' ? '✅ Berhasil!' : '✅ Done!';
+          return {
+            message: successMsg,
+            language,
+            action: { type: pendingAction.action, data: pendingAction.data }
+          };
+        }
+      }
+
       // "update/delete the rice" → Modify existing entry
       // Support period extraction for yesterday or specific dates
       const foodUpdatePeriod = intentResult.period || 'today';
@@ -219,6 +266,20 @@ async function handleMessageWithIntentRouting(
     }
 
     case 'exercise_update': {
+      // Check if user is confirming a pending delete/update action
+      if (isConfirmation(messageText)) {
+        const pendingAction = extractPendingAction(conversationHistory);
+        if (pendingAction && (pendingAction.action === 'delete_exercise' || pendingAction.action === 'update_exercise')) {
+          console.log('[EXERCISE-UPDATE] Executing pending action:', pendingAction.action);
+          const successMsg = language === 'id' ? '✅ Berhasil!' : '✅ Done!';
+          return {
+            message: successMsg,
+            language,
+            action: { type: pendingAction.action, data: pendingAction.data }
+          };
+        }
+      }
+
       // "update/delete my run" → Modify existing entry
       // Support period extraction for yesterday or specific dates
       const exerciseUpdatePeriod = intentResult.period || 'today';
@@ -498,11 +559,12 @@ interface TelegramUpdate {
 
 /**
  * Clean response to ensure no JSON leaks to user
- * Also removes hidden ESTIMATE tags used for data extraction
+ * Also removes hidden ESTIMATE and PENDING tags used for data extraction
  */
 function cleanResponseForUser(response: string): string {
-  // Remove hidden ESTIMATE tags (used for data extraction, not for display)
+  // Remove hidden ESTIMATE and PENDING tags (used for data extraction, not for display)
   let cleaned = response.replace(/\n?<!--ESTIMATE:.*?-->/g, '').trim();
+  cleaned = cleaned.replace(/<!--PENDING:.*?-->/g, '').trim();
 
   // Remove JSON code blocks
   cleaned = cleaned.replace(/```json[\s\S]*?```/g, '').trim();
@@ -1255,12 +1317,17 @@ async function executeAction(
         break;
 
       case 'delete_exercise':
-        console.log('🗑️ Deleting exercise:', action.data.exerciseId);
-        const deleteResult = await deleteExerciseEntry(action.data.exerciseId);
-        if (!deleteResult.success) {
-          throw new Error(deleteResult.error || 'Failed to delete exercise');
+        // Support single exerciseId or array of exerciseIds
+        const exerciseIds = action.data.exerciseIds || (action.data.exerciseId ? [action.data.exerciseId] : []);
+        console.log('🗑️ Deleting exercise entries:', exerciseIds);
+
+        for (const exerciseId of exerciseIds) {
+          const deleteResult = await deleteExerciseEntry(exerciseId);
+          if (!deleteResult.success) {
+            throw new Error(deleteResult.error || `Failed to delete exercise: ${exerciseId}`);
+          }
         }
-        console.log('✅ Exercise deleted successfully');
+        console.log(`✅ Deleted ${exerciseIds.length} exercise entries successfully`);
         invalidateTodayCache(userId);
         break;
 

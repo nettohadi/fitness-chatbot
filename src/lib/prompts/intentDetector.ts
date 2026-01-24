@@ -44,20 +44,26 @@ INTENTS (9 total):
 CRITICAL RULES FOR CLASSIFICATION:
 
 FOOD:
-- food_estimate = Has food description + quantity, NO explicit calories
-  Examples: "makan 2 potong pizza", "I ate a bowl of rice", "nasi goreng 1 porsi"
-- food_logging = Has food description + EXPLICIT calories provided by user
-  Examples: "500 kcal nasi goreng", "log 200 cal roti", "pizza 300 kkal"
+- food_estimate = Has food description + quantity (WITH or WITHOUT explicit calories)
+  Without calories: "makan 2 potong pizza", "I ate a bowl of rice", "nasi goreng 1 porsi"
+  With calories: "500 kcal nasi goreng", "log 200 cal roti", "pizza 300 kkal"
+  → ALL go to food_estimate first! Show value and ask "Simpan? (Ya/Tidak)"
+- food_logging = ONLY for confirmations after estimate (user says "ya/yes/ok/simpan")
+  Examples: "ya", "ok", "simpan", "yes" (after seeing "Simpan?" question)
+  → This triggers the actual database save
 - food_update = Edit/delete/update existing entries
   Examples: "hapus nasi", "edit makanan jadi 400 cal", "delete yesterday's food"
 - conversation = Incomplete info OR needs clarification
   Examples: "makan pizza" (no quantity), "I ate something" (no specifics)
 
 EXERCISE:
-- exercise_estimate = Has exercise type + duration, NO explicit calories burned
-  Examples: "lari 30 menit", "cycling 1 hour", "gym 45 min"
-- exercise_logging = Has exercise type + duration + EXPLICIT calories burned (ALL THREE REQUIRED!)
-  Examples: "lari 30 menit 300 kcal", "cycling 1 hour burned 500 cal"
+- exercise_estimate = Has exercise type + duration (WITH or WITHOUT explicit calories burned)
+  Without calories: "lari 30 menit", "cycling 1 hour", "gym 45 min"
+  With calories: "lari 30 menit 300 kcal", "cycling 1 hour burned 500 cal"
+  → ALL go to exercise_estimate first! Show value and ask "Simpan? (Ya/Tidak)"
+- exercise_logging = ONLY for confirmations after estimate (user says "ya/yes/ok/simpan")
+  Examples: "ya", "ok", "simpan", "yes" (after seeing "Simpan?" question)
+  → This triggers the actual database save
 - exercise_update = Edit/delete/update existing entries
   Examples: "hapus olahraga", "edit lari jadi 45 menit"
 - conversation = MISSING duration - needs clarification (even if calories are provided!)
@@ -78,6 +84,11 @@ If previous message contains "Simpan?" OR "Save?" OR "Mau saya catat?" OR shows 
   - If about FOOD → food_logging
   - If about EXERCISE → exercise_logging
   - If about PROFILE (weight/height/age/goal) → profile_update
+
+If previous message contains "Yakin?" OR "Sure?" (delete/update confirmation):
+  YES words: yes/ya/iya/yup/ok/oke/yakin/sure/betul/sip/boleh
+  - If about FOOD delete/update (contains "Hapus" or "Update" + food) → food_update
+  - If about EXERCISE delete/update (contains "Hapus" or "Update" + exercise) → exercise_update
 
   NO words: tidak/no/nope/cancel/batal/jangan/gak/nggak/enggak
   - Always → conversation (user declined, no action needed)
@@ -137,20 +148,23 @@ EXAMPLES:
 "makan pizza" → {"intent":"conversation","language":"id"} (no quantity - needs clarification)
 "I ate 2 slices pizza" → {"intent":"food_estimate","language":"en","foods":["pizza"]} (has quantity, no calories)
 "makan nasi goreng 200gr dan ayam bakar 1 potong" → {"intent":"food_estimate","language":"id","foods":["nasi goreng","ayam bakar"]}
-"500 kkal nasi goreng" → {"intent":"food_logging","language":"id"} (has explicit calories)
-"ya" (after food estimate) → {"intent":"food_logging","language":"id"} (confirmation)
+"500 kkal nasi goreng" → {"intent":"food_estimate","language":"id","foods":["nasi goreng"]} (has calories → still goes to estimate first!)
+"nasi 300 cal" → {"intent":"food_estimate","language":"id","foods":["nasi"]} (user provided calories → estimate first, then confirm)
+"ya" (after food estimate) → {"intent":"food_logging","language":"id"} (confirmation → now save)
 "hapus nasi" → {"intent":"food_update","language":"id"}
 "hapus makanan kemarin" → {"intent":"food_update","period":"yesterday","language":"id"}
+"ya" (after "Yakin?" for food delete) → {"intent":"food_update","language":"id"} (confirmation → execute pending delete)
 "tadi lari" → {"intent":"conversation","language":"id"} (no duration - needs clarification)
 "sepeda 400 kkal" → {"intent":"conversation","language":"id"} (has calories but NO duration - needs clarification!)
 "olahraga membakar 500 kcal" → {"intent":"conversation","language":"id"} (has calories but NO duration - needs clarification!)
 "lari 30 menit" → {"intent":"exercise_estimate","language":"id"} (has duration, no calories)
-"lari 30 menit 300 kcal" → {"intent":"exercise_logging","language":"id"} (has duration AND calories)
-"sepeda 1 jam burned 400 cal" → {"intent":"exercise_logging","language":"id"} (has duration AND calories)
-"sepeda statis 60 menit 426 kkal" → {"intent":"exercise_logging","language":"id"} (has duration AND calories)
-"ok simpan" (after exercise) → {"intent":"exercise_logging","language":"id"} (confirmation)
+"lari 30 menit 300 kcal" → {"intent":"exercise_estimate","language":"id"} (has duration AND calories → estimate first!)
+"sepeda 1 jam burned 400 cal" → {"intent":"exercise_estimate","language":"id"} (has duration AND calories → estimate first!)
+"sepeda statis 60 menit 426 kkal" → {"intent":"exercise_estimate","language":"id"} (has duration AND calories → estimate first!)
+"ok simpan" (after exercise estimate) → {"intent":"exercise_logging","language":"id"} (confirmation → now save)
 "hapus olahraga" → {"intent":"exercise_update","language":"id"}
 "hapus olahraga kemarin" → {"intent":"exercise_update","period":"yesterday","language":"id"}
+"ya" (after "Yakin?" for exercise delete) → {"intent":"exercise_update","language":"id"} (confirmation → execute pending delete)
 "sisa kalori?" → {"intent":"summary","period":"today","language":"id"}
 "how much left?" → {"intent":"summary","period":"today","language":"en"}
 "kalori kemarin" → {"intent":"summary","period":"yesterday","language":"id"}

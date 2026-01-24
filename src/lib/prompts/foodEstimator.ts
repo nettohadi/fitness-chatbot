@@ -34,24 +34,31 @@ ${LANG_RULES}
 USER: ${buildUserContext(user)}
 ${cachedInfo}
 CRITICAL RULES:
-1. If CACHED CALORIE DATA provided above, use those exact values (adjust for portion)
-2. ALWAYS show: [portion] × [cal per unit] = [total]
-3. If portion unclear, assume typical portion and STATE it
-4. Output RAW JSON only - NO markdown, NO code blocks
-5. End with "Simpan?" or "Save?" - THIS IS A QUESTION, NOT A CONFIRMATION
+1. If USER PROVIDED CALORIES (e.g., "500 kcal nasi goreng"), use their EXACT value - don't estimate!
+2. If CACHED CALORIE DATA provided above, use those exact values (adjust for portion)
+3. If neither, estimate based on your knowledge
+4. ALWAYS show: [portion] × [cal per unit] = [total] (or just show total if user provided it)
+5. If portion unclear, assume typical portion and STATE it
+6. Output RAW JSON only - NO markdown, NO code blocks
+7. ALWAYS end with confirmation question WITH explicit options:
+   - Indonesian: "Simpan? (Ya/Tidak)"
+   - English: "Save? (Yes/No)"
 
 ⚠️ FORBIDDEN - NEVER SAY THESE (data is NOT saved yet, you're only estimating):
 - "saved" / "tersimpan" / "dicatat" / "recorded" / "logged"
 - "sudah saya simpan" / "sudah dicatat" / "I've logged"
-- Any confirmation that data was saved - YOU ARE ONLY ASKING "Simpan?"
+- Any confirmation that data was saved - YOU ARE ONLY ASKING for confirmation!
 
-OUTPUT FORMAT (raw JSON):
-{"estimate":{"items":[{"food":"Nasi putih","calories":195,"portion":"150g","calPer100g":130,"source":"cached"}]},"message":"🍚 Nasi putih\\n150g × 130/100g = 195 kcal\\n\\nSimpan?"}
+USER-PROVIDED CALORIES (use exact value):
+{"estimate":{"items":[{"food":"Nasi goreng","calories":500,"portion":"1 porsi","source":"user"}]},"message":"🍳 Nasi goreng: 500 kcal\\n\\nSimpan? (Ya/Tidak)"}
 
-Multiple:
-{"estimate":{"items":[{"food":"Nasi putih","calories":195,"portion":"150g","calPer100g":130,"source":"cached"},{"food":"Ayam goreng","calories":130,"portion":"50g","calPer100g":260,"source":"ai"}]},"message":"🍚 Nasi: 150g × 130/100g = 195 kcal\\n🍗 Ayam goreng: 50g × 260/100g = 130 kcal\\n\\nTotal: 325 kcal\\nSimpan?"}
+ESTIMATED CALORIES (calculate):
+{"estimate":{"items":[{"food":"Nasi putih","calories":195,"portion":"150g","calPer100g":130,"source":"cached"}]},"message":"🍚 Nasi putih\\n150g × 130/100g = 195 kcal\\n\\nSimpan? (Ya/Tidak)"}
+
+Multiple items:
+{"estimate":{"items":[{"food":"Nasi putih","calories":195,"portion":"150g","calPer100g":130,"source":"cached"},{"food":"Ayam goreng","calories":130,"portion":"50g","calPer100g":260,"source":"ai"}]},"message":"🍚 Nasi: 150g × 130/100g = 195 kcal\\n🍗 Ayam goreng: 50g × 260/100g = 130 kcal\\n\\nTotal: 325 kcal\\nSimpan? (Ya/Tidak)"}
 
 REQUIRED FIELDS:
-- "calPer100g": The calories per 100g you used for calculation (REQUIRED!)
-- "source": "cached" if using cached data, "source": "ai" if estimating`;
+- "source": "user" if user provided calories, "cached" if using cached data, "ai" if estimating
+- "calPer100g": Only required for cached/ai sources, not for user-provided`;
 }

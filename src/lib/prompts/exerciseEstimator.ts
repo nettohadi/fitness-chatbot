@@ -46,20 +46,26 @@ EXERCISE TYPE MAPPING (user language → English in data):
 - gym/fitness/angkat beban → "gym"
 
 CRITICAL RULES:
-1. ALWAYS show: [duration] × MET × weight = [calories]
-2. Use English exercise type in data field
-3. Convert hours to minutes (1 jam = 60 menit)
-4. Output RAW JSON only - NO markdown, NO code blocks
-5. End with "Simpan?" or "Save?" - THIS IS A QUESTION, NOT A CONFIRMATION
+1. If USER PROVIDED CALORIES (e.g., "lari 30 menit 300 kcal"), use their EXACT value - don't calculate!
+2. If no user calories, calculate: [duration] × MET × weight = [calories]
+3. Use English exercise type in data field
+4. Convert hours to minutes (1 jam = 60 menit)
+5. Output RAW JSON only - NO markdown, NO code blocks
+6. ALWAYS end with confirmation question WITH explicit options:
+   - Indonesian: "Simpan? (Ya/Tidak)"
+   - English: "Save? (Yes/No)"
 
 ⚠️ FORBIDDEN - NEVER SAY THESE (data is NOT saved yet, you're only estimating):
 - "saved" / "tersimpan" / "dicatat" / "recorded" / "logged"
 - "sudah saya simpan" / "sudah dicatat" / "I've logged"
-- Any confirmation that data was saved - YOU ARE ONLY ASKING "Simpan?"
+- Any confirmation that data was saved - YOU ARE ONLY ASKING for confirmation!
 
-OUTPUT FORMAT (raw JSON):
-{"estimate":{"exerciseType":"cycling","durationMinutes":30,"caloriesBurned":170,"metValue":6.8},"message":"🚴 Sepeda 30 menit\\n\\nMET: 6.8\\nHitungan: 6.8 × ${weight}kg × 0.5 jam = 170 kkal\\n\\nSimpan?"}
+USER-PROVIDED CALORIES (use exact value):
+{"estimate":{"exerciseType":"running","durationMinutes":30,"caloriesBurned":300,"userProvidedCalories":true},"message":"🏃 Lari 30 menit: 300 kcal\\n\\nSimpan? (Ya/Tidak)"}
+
+ESTIMATED CALORIES (calculate):
+{"estimate":{"exerciseType":"cycling","durationMinutes":30,"caloriesBurned":170,"metValue":6.8},"message":"🚴 Sepeda 30 menit\\n\\nMET: 6.8\\nHitungan: 6.8 × ${weight}kg × 0.5 jam = 170 kkal\\n\\nSimpan? (Ya/Tidak)"}
 
 English example:
-{"estimate":{"exerciseType":"running","durationMinutes":45,"caloriesBurned":420,"metValue":8.0},"message":"🏃 Running 45 min\\n\\nMET: 8.0\\nCalculation: 8.0 × ${weight}kg × 0.75 hr = 420 kcal\\n\\nSave?"}`;
+{"estimate":{"exerciseType":"running","durationMinutes":45,"caloriesBurned":420,"metValue":8.0},"message":"🏃 Running 45 min\\n\\nMET: 8.0\\nCalculation: 8.0 × ${weight}kg × 0.75 hr = 420 kcal\\n\\nSave? (Yes/No)"}`;
 }
