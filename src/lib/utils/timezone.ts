@@ -87,12 +87,14 @@ export function inferTimezoneFromLanguage(languageCode?: string): string {
 }
 
 /**
- * Get today's date in a specific timezone as a Date object (for database storage)
+ * Get the start of today in a specific timezone as a UTC Date object
  * @param timezone - IANA timezone string (e.g., 'Asia/Jakarta')
- * @returns Date object representing midnight UTC of the local date
+ * @returns Date object representing midnight in the user's timezone (as UTC)
  */
 export function getLocalTodayAsDate(timezone: string): Date {
   const now = new Date();
+
+  // Get today's date string in the user's timezone
   const formatter = new Intl.DateTimeFormat('en-CA', {
     timeZone: timezone,
     year: 'numeric',
@@ -100,8 +102,34 @@ export function getLocalTodayAsDate(timezone: string): Date {
     day: '2-digit',
   });
   const todayStr = formatter.format(now); // YYYY-MM-DD
+
+  // Create a date string for midnight in the user's timezone
+  // Then parse it to get the correct UTC time
+  const midnightLocal = new Date(`${todayStr}T00:00:00`);
+
+  // Get the timezone offset for that specific date/time
+  const tzFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    timeZoneName: 'shortOffset',
+  });
+  const parts = tzFormatter.formatToParts(midnightLocal);
+  const offsetPart = parts.find(p => p.type === 'timeZoneName')?.value || '+00:00';
+
+  // Parse offset (e.g., "GMT+8" or "GMT+7" or "GMT-5")
+  const offsetMatch = offsetPart.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
+  if (offsetMatch) {
+    const sign = offsetMatch[1] === '+' ? -1 : 1; // Reverse for UTC conversion
+    const hours = parseInt(offsetMatch[2], 10);
+    const minutes = parseInt(offsetMatch[3] || '0', 10);
+    const offsetMs = sign * (hours * 60 + minutes) * 60 * 1000;
+
+    // Return midnight in user's timezone as UTC
+    const [year, month, day] = todayStr.split('-').map(Number);
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0) + offsetMs);
+  }
+
+  // Fallback: use midnight UTC (old behavior)
   const [year, month, day] = todayStr.split('-').map(Number);
-  // Create a Date at midnight UTC for this date
   return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
 }
 
