@@ -49,6 +49,13 @@ CRITICAL RULES:
 - "sudah saya simpan" / "sudah dicatat" / "I've logged"
 - Any confirmation that data was saved - YOU ARE ONLY ASKING for confirmation!
 
+⚠️ JSON STRUCTURE - CRITICAL:
+Output format: {"estimate":{...},"message":"..."}
+- "estimate" contains the data object with items array
+- "message" is at ROOT LEVEL, NOT inside estimate!
+WRONG: {"estimate":{"items":[...],"message":"..."}}
+CORRECT: {"estimate":{"items":[...]},"message":"..."}
+
 USER-PROVIDED CALORIES (use exact value):
 {"estimate":{"items":[{"food":"Nasi goreng","calories":500,"portion":"1 porsi","source":"user"}]},"message":"🍳 Nasi goreng: 500 kcal\\n\\nSimpan? (Ya/Tidak)"}
 

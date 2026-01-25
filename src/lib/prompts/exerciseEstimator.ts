@@ -60,6 +60,13 @@ CRITICAL RULES:
 - "sudah saya simpan" / "sudah dicatat" / "I've logged"
 - Any confirmation that data was saved - YOU ARE ONLY ASKING for confirmation!
 
+⚠️ JSON STRUCTURE - CRITICAL:
+Output format: {"estimate":{...},"message":"..."}
+- "estimate" contains the exercise data object
+- "message" is at ROOT LEVEL, NOT inside estimate!
+WRONG: {"estimate":{...,"message":"..."}}
+CORRECT: {"estimate":{...},"message":"..."}
+
 USER-PROVIDED CALORIES (use exact value):
 {"estimate":{"exerciseType":"running","durationMinutes":30,"caloriesBurned":300,"userProvidedCalories":true},"message":"🏃 Lari 30 menit: 300 kcal\\n\\nSimpan? (Ya/Tidak)"}
 
