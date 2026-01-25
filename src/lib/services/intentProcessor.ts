@@ -597,12 +597,15 @@ export async function processFoodEstimate(
       }
     }
 
+    // Handle message at root level OR nested inside estimate (LLM inconsistency)
+    const extractedMessage = result.message || (result.estimate as any).message;
+
     return {
       estimate: {
         items: result.estimate.items,
         timestamp: Date.now(),
       },
-      message: result.message,
+      message: extractedMessage,
     };
   }
 
@@ -722,12 +725,15 @@ export async function processExerciseEstimate(
   const result = parseJSON<{ estimate: { exerciseType: string; durationMinutes: number; caloriesBurned: number; metValue: number }; message: string }>(response);
 
   if (result && result.estimate) {
+    // Handle message at root level OR nested inside estimate (LLM inconsistency)
+    const extractedMessage = result.message || (result.estimate as any).message;
+
     return {
       estimate: {
         ...result.estimate,
         timestamp: Date.now(),
       },
-      message: result.message,
+      message: extractedMessage,
     };
   }
 
