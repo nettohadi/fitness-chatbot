@@ -161,7 +161,25 @@ async function handleMessageWithIntentRouting(
     case 'food_update_confirmation': {
       // User requests to update/delete food - show options and ask "Yakin?"
       // Support period extraction for yesterday or specific dates
-      const foodUpdatePeriod = intentResult.period || 'today';
+      // If intent detector didn't provide period, try to infer from conversation context
+      let foodUpdatePeriod = intentResult.period || 'today';
+
+      // Fallback: Check if user was viewing yesterday's summary
+      if (!intentResult.period) {
+        for (let i = conversationHistory.length - 1; i >= 0 && i >= conversationHistory.length - 3; i--) {
+          const msg = conversationHistory[i];
+          if (msg.role === 'assistant' && (
+            msg.content.includes('Kemarin') ||
+            msg.content.includes('Yesterday') ||
+            msg.content.includes('📊 Kemarin')
+          )) {
+            console.log('[FOOD-UPDATE-CONFIRM] Inferred period=yesterday from conversation context');
+            foodUpdatePeriod = 'yesterday';
+            break;
+          }
+        }
+      }
+
       let foodEntries: any[] = [];
       let foodPeriodLabel = 'hari ini';
 
@@ -266,7 +284,25 @@ async function handleMessageWithIntentRouting(
     case 'exercise_update_confirmation': {
       // User requests to update/delete exercise - show options and ask "Yakin?"
       // Support period extraction for yesterday or specific dates
-      const exerciseUpdatePeriod = intentResult.period || 'today';
+      // If intent detector didn't provide period, try to infer from conversation context
+      let exerciseUpdatePeriod = intentResult.period || 'today';
+
+      // Fallback: Check if user was viewing yesterday's summary
+      if (!intentResult.period) {
+        for (let i = conversationHistory.length - 1; i >= 0 && i >= conversationHistory.length - 3; i--) {
+          const msg = conversationHistory[i];
+          if (msg.role === 'assistant' && (
+            msg.content.includes('Kemarin') ||
+            msg.content.includes('Yesterday') ||
+            msg.content.includes('📊 Kemarin')
+          )) {
+            console.log('[EXERCISE-UPDATE-CONFIRM] Inferred period=yesterday from conversation context');
+            exerciseUpdatePeriod = 'yesterday';
+            break;
+          }
+        }
+      }
+
       let exerciseEntries: any[] = [];
       let exercisePeriodLabel = 'hari ini';
 
@@ -583,6 +619,21 @@ interface TelegramUpdate {
 }
 
 /**
+ * Extract message from parsed JSON, checking various nested structures
+ */
+function extractMessageFromParsed(parsed: any): string | null {
+  // Direct message fields at root level
+  if (parsed.message) return parsed.message;
+  if (parsed.userMessage) return parsed.userMessage;
+  if (parsed.successMessage) return parsed.successMessage;
+
+  // Nested under estimate object (food estimator response)
+  if (parsed.estimate?.message) return parsed.estimate.message;
+
+  return null;
+}
+
+/**
  * Clean response to ensure no JSON leaks to user
  * Also removes hidden ESTIMATE and PENDING tags used for data extraction
  */
@@ -598,13 +649,9 @@ function cleanResponseForUser(response: string): string {
   if (cleaned.startsWith('{') || cleaned.startsWith('[')) {
     try {
       const parsed = JSON.parse(cleaned);
-      // Try to extract user-facing message from various possible fields
-      if (parsed.message) {
-        cleaned = parsed.message;
-      } else if (parsed.userMessage) {
-        cleaned = parsed.userMessage;
-      } else if (parsed.successMessage) {
-        cleaned = parsed.successMessage;
+      const message = extractMessageFromParsed(parsed);
+      if (message) {
+        cleaned = message;
       }
     } catch (e) {
       // Not valid JSON or parsing failed
@@ -613,12 +660,9 @@ function cleanResponseForUser(response: string): string {
       if (jsonMatch) {
         try {
           const parsed = JSON.parse(jsonMatch[0]);
-          if (parsed.message) {
-            cleaned = parsed.message;
-          } else if (parsed.userMessage) {
-            cleaned = parsed.userMessage;
-          } else if (parsed.successMessage) {
-            cleaned = parsed.successMessage;
+          const message = extractMessageFromParsed(parsed);
+          if (message) {
+            cleaned = message;
           }
         } catch (e2) {
           // Still can't parse, return original
@@ -627,7 +671,11 @@ function cleanResponseForUser(response: string): string {
     }
   }
 
-  return cleaned;
+  // Remove [ID:xxx] format that shouldn't be shown to users
+  // These are internal IDs used for data extraction, not for display
+  cleaned = cleaned.replace(/\s*\[ID:[^\]]+\]/g, '');
+
+  return cleaned.trim();
 }
 
 export async function POST(request: NextRequest) {

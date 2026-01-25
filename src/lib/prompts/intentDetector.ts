@@ -107,10 +107,12 @@ If previous message contains "Yakin?" OR "Sure?" (delete/update confirmation) WI
   - Always → conversation (user declined, no action needed)
 
 PERIOD EXTRACTION FOR UPDATE CONFIRMATION INTENTS:
-For food_update_confirmation and exercise_update_confirmation, also extract period:
-- today/hari ini (default) → "period":"today"
-- yesterday/kemarin → "period":"yesterday"
-- specific date → "period":"specific","date":"YYYY-MM-DD"
+For food_update_confirmation and exercise_update_confirmation, ALWAYS include period:
+- If user explicitly says "today/hari ini" → "period":"today"
+- If user explicitly says "yesterday/kemarin" → "period":"yesterday"
+- If specific date mentioned → "period":"specific","date":"YYYY-MM-DD"
+- IMPORTANT: Infer from conversation context! If previous assistant message shows "Kemarin" or yesterday's summary, use "period":"yesterday"
+- If no explicit period AND no context clue → default to "period":"today"
 
 SUMMARY DETECTION:
 Keywords: sisa, berapa, kalori, how much, left, remaining, summary, report, history, total
@@ -150,12 +152,12 @@ OUTPUT FORMATS (raw JSON only):
 {"intent":"conversation","language":"id"}
 {"intent":"food_estimate","language":"en","foods":["pizza"]}
 {"intent":"food_logging","language":"id"}
-{"intent":"food_update_confirmation","language":"en"}
+{"intent":"food_update_confirmation","period":"today","language":"en"}
 {"intent":"food_update_confirmation","period":"yesterday","language":"id"}
 {"intent":"food_update","language":"id"}
 {"intent":"exercise_estimate","language":"en"}
 {"intent":"exercise_logging","language":"id"}
-{"intent":"exercise_update_confirmation","language":"en"}
+{"intent":"exercise_update_confirmation","period":"today","language":"en"}
 {"intent":"exercise_update_confirmation","period":"yesterday","language":"id"}
 {"intent":"exercise_update","language":"id"}
 {"intent":"summary","period":"today","language":"id"}
@@ -172,9 +174,10 @@ EXAMPLES:
 "500 kkal nasi goreng" → {"intent":"food_estimate","language":"id","foods":["nasi goreng"]} (has calories → still goes to estimate first!)
 "nasi 300 cal" → {"intent":"food_estimate","language":"id","foods":["nasi"]} (user provided calories → estimate first, then confirm)
 "ya" (after food "Simpan?" with PENDING tag) → {"intent":"food_logging","language":"id"} (confirmation → now save)
-"hapus nasi" → {"intent":"food_update_confirmation","language":"id"} (initial request → show options)
+"hapus nasi" → {"intent":"food_update_confirmation","period":"today","language":"id"} (initial request → show options)
 "hapus makanan kemarin" → {"intent":"food_update_confirmation","period":"yesterday","language":"id"}
-"edit makanan jadi 400 cal" → {"intent":"food_update_confirmation","language":"id"} (initial request → show options)
+"edit makanan jadi 400 cal" → {"intent":"food_update_confirmation","period":"today","language":"id"} (initial request → show options)
+"hapus roti teratas" (after seeing "Kemarin" summary) → {"intent":"food_update_confirmation","period":"yesterday","language":"id"} (infer from context!)
 "ya" (after "Yakin?" with PENDING tag) → {"intent":"food_update","language":"id"} (confirmation → execute pending)
 "tadi lari" → {"intent":"conversation","language":"id"} (no duration - needs clarification)
 "sepeda 400 kkal" → {"intent":"conversation","language":"id"} (has calories but NO duration - needs clarification!)
@@ -184,9 +187,9 @@ EXAMPLES:
 "sepeda 1 jam burned 400 cal" → {"intent":"exercise_estimate","language":"id"} (has duration AND calories → estimate first!)
 "sepeda statis 60 menit 426 kkal" → {"intent":"exercise_estimate","language":"id"} (has duration AND calories → estimate first!)
 "ok simpan" (after exercise "Simpan?" with PENDING tag) → {"intent":"exercise_logging","language":"id"} (confirmation → now save)
-"hapus olahraga" → {"intent":"exercise_update_confirmation","language":"id"} (initial request → show options)
+"hapus olahraga" → {"intent":"exercise_update_confirmation","period":"today","language":"id"} (initial request → show options)
 "hapus olahraga kemarin" → {"intent":"exercise_update_confirmation","period":"yesterday","language":"id"}
-"edit lari jadi 45 menit" → {"intent":"exercise_update_confirmation","language":"id"} (initial request → show options)
+"edit lari jadi 45 menit" → {"intent":"exercise_update_confirmation","period":"today","language":"id"} (initial request → show options)
 "ya" (after exercise "Yakin?" with PENDING tag) → {"intent":"exercise_update","language":"id"} (confirmation → execute pending)
 "sisa kalori?" → {"intent":"summary","period":"today","language":"id"}
 "how much left?" → {"intent":"summary","period":"today","language":"en"}
