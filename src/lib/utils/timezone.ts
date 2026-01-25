@@ -87,9 +87,17 @@ export function inferTimezoneFromLanguage(languageCode?: string): string {
 }
 
 /**
- * Get the start of today in a specific timezone as a UTC Date object
+ * Get today's calendar date in a specific timezone as a UTC Date object
+ *
+ * IMPORTANT: This returns midnight UTC of the calendar date in the user's timezone.
+ * For example, if it's Jan 25 05:52 WIB (UTC+7), this returns:
+ *   Date representing 2026-01-25T00:00:00.000Z (midnight UTC of Jan 25)
+ *
+ * This is used for storing the DATE field in the database, which should represent
+ * the calendar date in the user's timezone, NOT the actual UTC time.
+ *
  * @param timezone - IANA timezone string (e.g., 'Asia/Jakarta')
- * @returns Date object representing midnight in the user's timezone (as UTC)
+ * @returns Date object representing midnight UTC of the calendar date in user's timezone
  */
 export function getLocalTodayAsDate(timezone: string): Date {
   const now = new Date();
@@ -103,33 +111,12 @@ export function getLocalTodayAsDate(timezone: string): Date {
   });
   const todayStr = formatter.format(now); // YYYY-MM-DD
 
-  // Create a date string for midnight in the user's timezone
-  // Then parse it to get the correct UTC time
-  const midnightLocal = new Date(`${todayStr}T00:00:00`);
-
-  // Get the timezone offset for that specific date/time
-  const tzFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    timeZoneName: 'shortOffset',
-  });
-  const parts = tzFormatter.formatToParts(midnightLocal);
-  const offsetPart = parts.find(p => p.type === 'timeZoneName')?.value || '+00:00';
-
-  // Parse offset (e.g., "GMT+8" or "GMT+7" or "GMT-5")
-  const offsetMatch = offsetPart.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
-  if (offsetMatch) {
-    const sign = offsetMatch[1] === '+' ? -1 : 1; // Reverse for UTC conversion
-    const hours = parseInt(offsetMatch[2], 10);
-    const minutes = parseInt(offsetMatch[3] || '0', 10);
-    const offsetMs = sign * (hours * 60 + minutes) * 60 * 1000;
-
-    // Return midnight in user's timezone as UTC
-    const [year, month, day] = todayStr.split('-').map(Number);
-    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0) + offsetMs);
-  }
-
-  // Fallback: use midnight UTC (old behavior)
+  // Parse the date components and create midnight UTC for that calendar date
+  // DO NOT add timezone offset - we want to store the calendar date, not the local midnight time
   const [year, month, day] = todayStr.split('-').map(Number);
+
+  console.log(`[TIMEZONE] getLocalTodayAsDate: timezone=${timezone}, now=${now.toISOString()}, todayStr=${todayStr}`);
+
   return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
 }
 

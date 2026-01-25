@@ -5,7 +5,7 @@
 
 /**
  * Build the intent detector system prompt
- * Classifies user messages into one of 9 intents
+ * Classifies user messages into one of 11 intents
  *
  * IMPORTANT: This is a CLASSIFIER ONLY - it does not generate messages.
  * Message generation is handled by dedicated prompts for each intent.
@@ -30,16 +30,19 @@ Detect user's language but DO NOT generate any messages.
 - Indonesian keywords: makan, kalori, sisa, hari ini, kemarin, olahraga, sepeda, lari
 - English keywords: ate, eat, calories, left, remaining, today, yesterday, exercise
 
-INTENTS (9 total):
+INTENTS (13 total):
 1. food_estimate - User mentions food WITH description and quantity/portion (but no calories)
-2. food_logging - User provides food WITH explicit calories, ready to save
-3. food_update - Update/edit/delete existing food entry
-4. exercise_estimate - User mentions exercise WITH duration (but no calories burned)
-5. exercise_logging - User provides exercise WITH duration AND explicit calories burned, ready to save
-6. exercise_update - Update/edit/delete existing exercise entry
-7. summary - ANY question about calories/history/remaining
-8. profile_update - Update weight, height, age, goal, activity level
-9. conversation - Greetings, clarification needed, out-of-scope, general chat
+2. food_logging - User confirms food estimate (says "ya/yes" after "Simpan?")
+3. food_update_confirmation - User wants to update/delete food (show options, ask "Yakin?")
+4. food_update - User confirms food update/delete (says "ya/yes" after "Yakin?")
+5. exercise_estimate - User mentions exercise WITH duration (but no calories burned)
+6. exercise_logging - User confirms exercise estimate (says "ya/yes" after "Simpan?")
+7. exercise_update_confirmation - User wants to update/delete exercise (show options, ask "Yakin?")
+8. exercise_update - User confirms exercise update/delete (says "ya/yes" after "Yakin?")
+9. summary - ANY question about calories/history/remaining
+10. profile_update_confirmation - User wants to update profile (show current value, ask "Simpan?")
+11. profile_update - User confirms profile update (says "ya/yes" after "Simpan?")
+12. conversation - Greetings, clarification needed, out-of-scope, general chat
 
 CRITICAL RULES FOR CLASSIFICATION:
 
@@ -51,8 +54,13 @@ FOOD:
 - food_logging = ONLY for confirmations after estimate (user says "ya/yes/ok/simpan")
   Examples: "ya", "ok", "simpan", "yes" (after seeing "Simpan?" question)
   → This triggers the actual database save
-- food_update = Edit/delete/update existing entries
-  Examples: "hapus nasi", "edit makanan jadi 400 cal", "delete yesterday's food"
+- food_update_confirmation = User REQUESTS to edit/delete food (initial request)
+  Examples: "hapus nasi", "edit makanan jadi 400 cal", "delete yesterday's food", "hapus roti kemarin"
+  → Shows food list with options and asks "Yakin? (Ya/Tidak)"
+  → Bot stores pending action in <!--PENDING:...--> tag
+- food_update = ONLY when user confirms after seeing "Yakin?" (executes pending action)
+  Examples: "ya", "ok", "yakin" (after seeing "Yakin?" with PENDING tag)
+  → This triggers the actual database update/delete
 - conversation = Incomplete info OR needs clarification
   Examples: "makan pizza" (no quantity), "I ate something" (no specifics)
 
@@ -64,8 +72,13 @@ EXERCISE:
 - exercise_logging = ONLY for confirmations after estimate (user says "ya/yes/ok/simpan")
   Examples: "ya", "ok", "simpan", "yes" (after seeing "Simpan?" question)
   → This triggers the actual database save
-- exercise_update = Edit/delete/update existing entries
-  Examples: "hapus olahraga", "edit lari jadi 45 menit"
+- exercise_update_confirmation = User REQUESTS to edit/delete exercise (initial request)
+  Examples: "hapus olahraga", "edit lari jadi 45 menit", "hapus sepeda kemarin"
+  → Shows exercise list with options and asks "Yakin? (Ya/Tidak)"
+  → Bot stores pending action in <!--PENDING:...--> tag
+- exercise_update = ONLY when user confirms after seeing "Yakin?" (executes pending action)
+  Examples: "ya", "ok", "yakin" (after seeing "Yakin?" with PENDING tag)
+  → This triggers the actual database update/delete
 - conversation = MISSING duration - needs clarification (even if calories are provided!)
   Examples: "tadi lari" (no duration), "I exercised" (no specifics), "sepeda 400 kkal" (has calories but NO duration - STILL needs clarification!)
 
@@ -79,22 +92,22 @@ If previous message asked for exercise duration (e.g., "berapa menit?", "how lon
   - If user provides duration (e.g., "30 menit", "1 hour", "45 min", just a number) → exercise_estimate
 
 CONFIRMATION DETECTION (check previous assistant message):
-If previous message contains "Simpan?" OR "Save?" OR "Mau saya catat?" OR shows a calorie estimate:
+If previous message contains "Simpan?" OR "Save?" WITH <!--PENDING:...--> tag:
   YES words: yes/ya/iya/yup/ok/oke/simpan/catat/save/lanjut/gas/betul/sip/boleh
-  - If about FOOD → food_logging
-  - If about EXERCISE → exercise_logging
-  - If about PROFILE (weight/height/age/goal) → profile_update
+  - If about FOOD (contains food emoji or food mention) → food_logging (executes pending action)
+  - If about EXERCISE (contains exercise emoji or exercise mention) → exercise_logging (executes pending action)
+  - If about PROFILE (weight/height/age/goal/name mention) → profile_update (executes pending action)
 
-If previous message contains "Yakin?" OR "Sure?" (delete/update confirmation):
+If previous message contains "Yakin?" OR "Sure?" (delete/update confirmation) WITH <!--PENDING:...--> tag:
   YES words: yes/ya/iya/yup/ok/oke/yakin/sure/betul/sip/boleh
-  - If about FOOD delete/update (contains "Hapus" or "Update" + food) → food_update
-  - If about EXERCISE delete/update (contains "Hapus" or "Update" + exercise) → exercise_update
+  - If about FOOD delete/update → food_update (executes pending action)
+  - If about EXERCISE delete/update → exercise_update (executes pending action)
 
   NO words: tidak/no/nope/cancel/batal/jangan/gak/nggak/enggak
   - Always → conversation (user declined, no action needed)
 
-PERIOD EXTRACTION FOR UPDATE INTENTS:
-For food_update and exercise_update, also extract period:
+PERIOD EXTRACTION FOR UPDATE CONFIRMATION INTENTS:
+For food_update_confirmation and exercise_update_confirmation, also extract period:
 - today/hari ini (default) → "period":"today"
 - yesterday/kemarin → "period":"yesterday"
 - specific date → "period":"specific","date":"YYYY-MM-DD"
@@ -109,10 +122,15 @@ Period extraction:
 - "tanggal 15", "Jan 10", specific date → "period":"specific","date":"YYYY-MM-DD"
 - No period mentioned → "period":"today"
 
-PROFILE UPDATE (must have NEW VALUE):
-- profile_update = User provides NEW VALUE to update
+PROFILE:
+- profile_update_confirmation = User provides NEW VALUE to update (initial request)
   Examples: "berat saya 70kg", "update tinggi 175cm", "ubah target 1500 cal"
   Name updates: "nama saya Hadi", "panggil saya Adi", "call me John", "my name is Sarah"
+  → Shows current vs new value and asks "Simpan? (Ya/Tidak)"
+  → Bot stores pending action in <!--PENDING:...--> tag
+- profile_update = ONLY when user confirms after seeing "Simpan?" (executes pending action)
+  Examples: "ya", "ok", "simpan" (after seeing profile update confirmation)
+  → This triggers the actual database update
 - If user ASKS about profile without new value → conversation (see below)
 
 CONVERSATION (use for all of these):
@@ -132,16 +150,19 @@ OUTPUT FORMATS (raw JSON only):
 {"intent":"conversation","language":"id"}
 {"intent":"food_estimate","language":"en","foods":["pizza"]}
 {"intent":"food_logging","language":"id"}
-{"intent":"food_update","language":"en"}
-{"intent":"food_update","period":"yesterday","language":"id"}
+{"intent":"food_update_confirmation","language":"en"}
+{"intent":"food_update_confirmation","period":"yesterday","language":"id"}
+{"intent":"food_update","language":"id"}
 {"intent":"exercise_estimate","language":"en"}
 {"intent":"exercise_logging","language":"id"}
-{"intent":"exercise_update","language":"en"}
-{"intent":"exercise_update","period":"yesterday","language":"id"}
+{"intent":"exercise_update_confirmation","language":"en"}
+{"intent":"exercise_update_confirmation","period":"yesterday","language":"id"}
+{"intent":"exercise_update","language":"id"}
 {"intent":"summary","period":"today","language":"id"}
 {"intent":"summary","period":"yesterday","language":"en"}
 {"intent":"summary","period":"week","language":"id"}
 {"intent":"summary","period":"specific","date":"2026-01-15","language":"en"}
+{"intent":"profile_update_confirmation","language":"id"}
 {"intent":"profile_update","language":"id"}
 
 EXAMPLES:
@@ -150,10 +171,11 @@ EXAMPLES:
 "makan nasi goreng 200gr dan ayam bakar 1 potong" → {"intent":"food_estimate","language":"id","foods":["nasi goreng","ayam bakar"]}
 "500 kkal nasi goreng" → {"intent":"food_estimate","language":"id","foods":["nasi goreng"]} (has calories → still goes to estimate first!)
 "nasi 300 cal" → {"intent":"food_estimate","language":"id","foods":["nasi"]} (user provided calories → estimate first, then confirm)
-"ya" (after food estimate) → {"intent":"food_logging","language":"id"} (confirmation → now save)
-"hapus nasi" → {"intent":"food_update","language":"id"}
-"hapus makanan kemarin" → {"intent":"food_update","period":"yesterday","language":"id"}
-"ya" (after "Yakin?" for food delete) → {"intent":"food_update","language":"id"} (confirmation → execute pending delete)
+"ya" (after food "Simpan?" with PENDING tag) → {"intent":"food_logging","language":"id"} (confirmation → now save)
+"hapus nasi" → {"intent":"food_update_confirmation","language":"id"} (initial request → show options)
+"hapus makanan kemarin" → {"intent":"food_update_confirmation","period":"yesterday","language":"id"}
+"edit makanan jadi 400 cal" → {"intent":"food_update_confirmation","language":"id"} (initial request → show options)
+"ya" (after "Yakin?" with PENDING tag) → {"intent":"food_update","language":"id"} (confirmation → execute pending)
 "tadi lari" → {"intent":"conversation","language":"id"} (no duration - needs clarification)
 "sepeda 400 kkal" → {"intent":"conversation","language":"id"} (has calories but NO duration - needs clarification!)
 "olahraga membakar 500 kcal" → {"intent":"conversation","language":"id"} (has calories but NO duration - needs clarification!)
@@ -161,20 +183,21 @@ EXAMPLES:
 "lari 30 menit 300 kcal" → {"intent":"exercise_estimate","language":"id"} (has duration AND calories → estimate first!)
 "sepeda 1 jam burned 400 cal" → {"intent":"exercise_estimate","language":"id"} (has duration AND calories → estimate first!)
 "sepeda statis 60 menit 426 kkal" → {"intent":"exercise_estimate","language":"id"} (has duration AND calories → estimate first!)
-"ok simpan" (after exercise estimate) → {"intent":"exercise_logging","language":"id"} (confirmation → now save)
-"hapus olahraga" → {"intent":"exercise_update","language":"id"}
-"hapus olahraga kemarin" → {"intent":"exercise_update","period":"yesterday","language":"id"}
-"ya" (after "Yakin?" for exercise delete) → {"intent":"exercise_update","language":"id"} (confirmation → execute pending delete)
+"ok simpan" (after exercise "Simpan?" with PENDING tag) → {"intent":"exercise_logging","language":"id"} (confirmation → now save)
+"hapus olahraga" → {"intent":"exercise_update_confirmation","language":"id"} (initial request → show options)
+"hapus olahraga kemarin" → {"intent":"exercise_update_confirmation","period":"yesterday","language":"id"}
+"edit lari jadi 45 menit" → {"intent":"exercise_update_confirmation","language":"id"} (initial request → show options)
+"ya" (after exercise "Yakin?" with PENDING tag) → {"intent":"exercise_update","language":"id"} (confirmation → execute pending)
 "sisa kalori?" → {"intent":"summary","period":"today","language":"id"}
 "how much left?" → {"intent":"summary","period":"today","language":"en"}
 "kalori kemarin" → {"intent":"summary","period":"yesterday","language":"id"}
 "ringkasan minggu ini" → {"intent":"summary","period":"week","language":"id"}
 "tanggal 10 januari" → {"intent":"summary","period":"specific","date":"2026-01-10","language":"id"}
-"berat saya 70kg" → {"intent":"profile_update","language":"id"}
-"nama saya Hadi" → {"intent":"profile_update","language":"id"}
-"panggil saya Adi" → {"intent":"profile_update","language":"id"}
-"call me John" → {"intent":"profile_update","language":"en"}
-"ya" (after profile update question) → {"intent":"profile_update","language":"id"}
+"berat saya 70kg" → {"intent":"profile_update_confirmation","language":"id"} (initial request → show current vs new)
+"nama saya Hadi" → {"intent":"profile_update_confirmation","language":"id"}
+"panggil saya Adi" → {"intent":"profile_update_confirmation","language":"id"}
+"call me John" → {"intent":"profile_update_confirmation","language":"en"}
+"ya" (after profile "Simpan?" with PENDING tag) → {"intent":"profile_update","language":"id"} (confirmation → execute pending)
 "tidak" (after any save question) → {"intent":"conversation","language":"id"}
 "no" (after any save question) → {"intent":"conversation","language":"en"}
 "berapa BMR saya?" → {"intent":"conversation","language":"id"}

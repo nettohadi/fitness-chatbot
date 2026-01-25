@@ -7,14 +7,15 @@ export type Intent =
   | 'conversation'
   | 'food_estimate'
   | 'food_logging'
-  | 'food_update'
-  | 'food_clarification' // User mentioned food but no quantity
+  | 'food_update_confirmation' // User requests to update/delete food - show options, ask "Yakin?"
+  | 'food_update' // User confirms food update/delete - execute pending action
   | 'exercise_estimate'
   | 'exercise_logging'
-  | 'exercise_update'
-  | 'exercise_clarification' // User mentioned exercise but no duration
+  | 'exercise_update_confirmation' // User requests to update/delete exercise - show options, ask "Yakin?"
+  | 'exercise_update' // User confirms exercise update/delete - execute pending action
   | 'summary'
-  | 'profile_update';
+  | 'profile_update_confirmation' // User provides profile update - show current vs new, ask "Simpan?"
+  | 'profile_update'; // User confirms profile update - execute pending action
 
 // Supported languages
 export type Language = 'id' | 'en';

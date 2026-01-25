@@ -81,14 +81,6 @@ function extractPendingAction(history: any[]): any | null {
 }
 
 /**
- * Check if user message is a confirmation (yes/ya/ok)
- */
-function isConfirmation(message: string): boolean {
-  const confirmWords = /^(yes|ya|iya|yup|ok|oke|yakin|sure|betul|sip|boleh)$/i;
-  return confirmWords.test(message.trim());
-}
-
-/**
  * Handle message using intent-based routing (new architecture)
  * Flow: Profile pre-check → Intent detection → Specialized processor
  */
@@ -166,22 +158,8 @@ async function handleMessageWithIntentRouting(
       return { message: (result as { message: string }).message, language };
     }
 
-    case 'food_update': {
-      // Check if user is confirming a pending delete/update action
-      if (isConfirmation(messageText)) {
-        const pendingAction = extractPendingAction(conversationHistory);
-        if (pendingAction && (pendingAction.action === 'delete_calories' || pendingAction.action === 'update_calories')) {
-          console.log('[FOOD-UPDATE] Executing pending action:', pendingAction.action);
-          const successMsg = language === 'id' ? '✅ Berhasil!' : '✅ Done!';
-          return {
-            message: successMsg,
-            language,
-            action: { type: pendingAction.action, data: pendingAction.data }
-          };
-        }
-      }
-
-      // "update/delete the rice" → Modify existing entry
+    case 'food_update_confirmation': {
+      // User requests to update/delete food - show options and ask "Yakin?"
       // Support period extraction for yesterday or specific dates
       const foodUpdatePeriod = intentResult.period || 'today';
       let foodEntries: any[] = [];
@@ -219,6 +197,26 @@ async function handleMessageWithIntentRouting(
         language,
         action: result.action ? { type: result.action, data: result.data } : undefined
       };
+    }
+
+    case 'food_update': {
+      // User confirms food update/delete - execute pending action
+      const pendingAction = extractPendingAction(conversationHistory);
+      if (pendingAction && (pendingAction.action === 'delete_calories' || pendingAction.action === 'update_calories')) {
+        console.log('[FOOD-UPDATE] Executing pending action:', pendingAction.action);
+        const successMsg = language === 'id' ? '✅ Berhasil!' : '✅ Done!';
+        return {
+          message: successMsg,
+          language,
+          action: { type: pendingAction.action, data: pendingAction.data }
+        };
+      }
+
+      // No pending action found - ask user what they want to do
+      const noActionMsg = language === 'id'
+        ? '❓ Tidak ada aksi pending. Mau hapus atau update makanan yang mana?'
+        : '❓ No pending action. What would you like to update or delete?';
+      return { message: noActionMsg, language };
     }
 
     // EXERCISE FLOW
@@ -265,22 +263,8 @@ async function handleMessageWithIntentRouting(
       return { message: (result as { message: string }).message, language };
     }
 
-    case 'exercise_update': {
-      // Check if user is confirming a pending delete/update action
-      if (isConfirmation(messageText)) {
-        const pendingAction = extractPendingAction(conversationHistory);
-        if (pendingAction && (pendingAction.action === 'delete_exercise' || pendingAction.action === 'update_exercise')) {
-          console.log('[EXERCISE-UPDATE] Executing pending action:', pendingAction.action);
-          const successMsg = language === 'id' ? '✅ Berhasil!' : '✅ Done!';
-          return {
-            message: successMsg,
-            language,
-            action: { type: pendingAction.action, data: pendingAction.data }
-          };
-        }
-      }
-
-      // "update/delete my run" → Modify existing entry
+    case 'exercise_update_confirmation': {
+      // User requests to update/delete exercise - show options and ask "Yakin?"
       // Support period extraction for yesterday or specific dates
       const exerciseUpdatePeriod = intentResult.period || 'today';
       let exerciseEntries: any[] = [];
@@ -319,6 +303,26 @@ async function handleMessageWithIntentRouting(
         language,
         action: result.action ? { type: result.action, data: result.data } : undefined
       };
+    }
+
+    case 'exercise_update': {
+      // User confirms exercise update/delete - execute pending action
+      const pendingAction = extractPendingAction(conversationHistory);
+      if (pendingAction && (pendingAction.action === 'delete_exercise' || pendingAction.action === 'update_exercise')) {
+        console.log('[EXERCISE-UPDATE] Executing pending action:', pendingAction.action);
+        const successMsg = language === 'id' ? '✅ Berhasil!' : '✅ Done!';
+        return {
+          message: successMsg,
+          language,
+          action: { type: pendingAction.action, data: pendingAction.data }
+        };
+      }
+
+      // No pending action found - ask user what they want to do
+      const noActionMsg = language === 'id'
+        ? '❓ Tidak ada aksi pending. Mau hapus atau update olahraga yang mana?'
+        : '❓ No pending action. What would you like to update or delete?';
+      return { message: noActionMsg, language };
     }
 
     // OTHER
@@ -493,9 +497,10 @@ async function handleMessageWithIntentRouting(
       return { message: result, language };
     }
 
-    case 'profile_update': {
+    case 'profile_update_confirmation': {
+      // User provides new profile value - show current vs new, ask "Simpan?"
       const result = await processProfileUpdate(messageText, promptUser, conversationHistory);
-      // Profile update may return message OR successMessage depending on whether it's asking confirmation or saving
+      // Profile update returns message with PENDING tag for confirmation
       const responseMessage = result.message || (result as any).successMessage || 'Profile updated.';
       return {
         message: responseMessage,
@@ -507,6 +512,26 @@ async function handleMessageWithIntentRouting(
           failureMessage: (result as any).failureMessage
         } : undefined
       };
+    }
+
+    case 'profile_update': {
+      // User confirms profile update - execute pending action
+      const pendingAction = extractPendingAction(conversationHistory);
+      if (pendingAction && pendingAction.action === 'update_profile') {
+        console.log('[PROFILE-UPDATE] Executing pending action:', pendingAction.action);
+        const successMsg = language === 'id' ? '✅ Profil diperbarui!' : '✅ Profile updated!';
+        return {
+          message: successMsg,
+          language,
+          action: { type: pendingAction.action, data: pendingAction.data }
+        };
+      }
+
+      // No pending action found - ask user what they want to update
+      const noActionMsg = language === 'id'
+        ? '❓ Tidak ada perubahan pending. Mau update apa?'
+        : '❓ No pending update. What would you like to change?';
+      return { message: noActionMsg, language };
     }
 
     default:
@@ -738,6 +763,7 @@ export async function POST(request: NextRequest) {
       }, 4000);
 
       let responseMessage: string;
+      let messageForLog: string; // Keep original message with PENDING tags for DB logging
       try {
         const result = await handleMessageWithIntentRouting(messageText, user, conversationHistory);
         responseMessage = result.message;
@@ -765,7 +791,10 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Clean response
+        // Keep original message with PENDING/ESTIMATE tags for DB logging
+        messageForLog = responseMessage;
+
+        // Clean response for Telegram display only (remove PENDING/ESTIMATE tags)
         responseMessage = cleanResponseForUser(responseMessage);
       } finally {
         clearInterval(typingInterval);
@@ -773,10 +802,10 @@ export async function POST(request: NextRequest) {
         console.log('[INTENT-ROUTING] Processing completed in', processingDuration, 'ms');
       }
 
-      // Send message and log
+      // Send cleaned message to Telegram, but log original message with tags to DB
       await Promise.all([
         sendTelegramMessage(chatId, formatForMarkdownV2(responseMessage), 'MarkdownV2'),
-        logConversationPair(userIdentifier, messageText, responseMessage),
+        logConversationPair(userIdentifier, messageText, messageForLog),
       ]);
 
       return NextResponse.json({ ok: true });
