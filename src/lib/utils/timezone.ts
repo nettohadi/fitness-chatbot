@@ -137,6 +137,65 @@ export function getLocalTodayString(timezone: string): string {
 }
 
 /**
+ * Get the UTC timestamp for local midnight in a specific timezone
+ *
+ * IMPORTANT: This is different from getLocalTodayAsDate!
+ * - getLocalTodayAsDate: Returns midnight UTC of the calendar date (for DATE field storage)
+ * - getLocalMidnightUTC: Returns the UTC time when it was midnight in the user's timezone
+ *
+ * Example for WIB (UTC+7) user at 05:34 WIB on Jan 26:
+ * - getLocalTodayAsDate returns: 2026-01-26T00:00:00.000Z (midnight UTC, Jan 26)
+ * - getLocalMidnightUTC returns: 2026-01-25T17:00:00.000Z (midnight WIB = 17:00 UTC, Jan 25)
+ *
+ * Use this function for filtering records by "today" in conversation history.
+ *
+ * @param timezone - IANA timezone string (e.g., 'Asia/Jakarta')
+ * @returns Date object representing the UTC time when it was midnight in user's timezone
+ */
+export function getLocalMidnightUTC(timezone: string): Date {
+  const now = new Date();
+
+  // Get today's date string in the user's timezone
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const todayStr = formatter.format(now); // YYYY-MM-DD
+
+  // Parse the date components
+  const [year, month, day] = todayStr.split('-').map(Number);
+
+  // Get the offset in minutes for this timezone at this date
+  const utcDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const localFormatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  });
+
+  // Calculate offset by checking what time it is in the timezone when it's midnight UTC
+  const parts = localFormatter.formatToParts(utcDate);
+  const hourPart = parts.find(p => p.type === 'hour');
+  const minutePart = parts.find(p => p.type === 'minute');
+  const hourInTz = parseInt(hourPart?.value || '0', 10);
+  const minInTz = parseInt(minutePart?.value || '0', 10);
+
+  // If it's 7:00 in WIB when it's 00:00 UTC, offset is +7 hours
+  // So local midnight (00:00 WIB) = 00:00 UTC - 7 hours = 17:00 UTC previous day
+  const offsetMinutes = hourInTz * 60 + minInTz;
+
+  // Subtract the offset to get UTC time of local midnight
+  const localMidnightUTC = new Date(utcDate.getTime() - offsetMinutes * 60 * 1000);
+
+  console.log(`[TIMEZONE] getLocalMidnightUTC: timezone=${timezone}, todayStr=${todayStr}, offsetMin=${offsetMinutes}, result=${localMidnightUTC.toISOString()}`);
+
+  return localMidnightUTC;
+}
+
+/**
  * Get user's timezone, falling back to app default
  * @param user - User object with optional timezone field
  * @returns IANA timezone string

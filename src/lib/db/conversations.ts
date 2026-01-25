@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { DbResult } from '@/types';
-import { getLocalTodayAsDate } from '@/lib/utils/timezone';
+import { getLocalMidnightUTC } from '@/lib/utils/timezone';
 
 /**
  * Log a conversation message
@@ -62,14 +62,15 @@ export async function getConversationHistory(
   timezone: string = 'Asia/Jakarta'
 ): Promise<DbResult<any[]>> {
   try {
-    // Get start of today in user's timezone
-    const today = getLocalTodayAsDate(timezone);
+    // Get start of today in user's timezone (local midnight converted to UTC)
+    // This ensures we get all messages from "today" in the user's local time
+    const todayStart = getLocalMidnightUTC(timezone);
 
     const logs = await prisma.conversationLog.findMany({
       where: {
         phoneNumber: chatId,
         createdAt: {
-          gte: today,
+          gte: todayStart,
         },
       },
       orderBy: [
