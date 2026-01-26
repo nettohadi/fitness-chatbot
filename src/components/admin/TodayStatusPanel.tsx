@@ -3,6 +3,12 @@
 import { useUserTodayStatus } from "@/lib/hooks/useAdminData"
 import { Loader2, RefreshCw } from "lucide-react"
 
+// Format number to max 1 decimal place
+function formatCalories(value: number): string {
+  const rounded = Math.round(value * 10) / 10
+  return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1)
+}
+
 interface TodayStatusPanelProps {
   userId: string
 }
@@ -109,20 +115,20 @@ export default function TodayStatusPanel({ userId }: TodayStatusPanelProps) {
       {/* Calorie Summary */}
       <div className="grid grid-cols-2 gap-4 text-center">
         <div className="bg-secondary/30 rounded-lg p-3">
-          <div className="text-2xl font-bold text-foreground">{consumed}</div>
+          <div className="text-2xl font-bold text-foreground">{formatCalories(consumed)}</div>
           <div className="text-xs text-muted-foreground">Consumed</div>
         </div>
         <div className="bg-secondary/30 rounded-lg p-3">
-          <div className="text-2xl font-bold text-green-400">{burned}</div>
+          <div className="text-2xl font-bold text-green-400">{formatCalories(burned)}</div>
           <div className="text-xs text-muted-foreground">Burned</div>
         </div>
         <div className="bg-secondary/30 rounded-lg p-3">
-          <div className="text-2xl font-bold text-foreground">{dailyGoal}</div>
+          <div className="text-2xl font-bold text-foreground">{formatCalories(dailyGoal)}</div>
           <div className="text-xs text-muted-foreground">Daily Goal</div>
         </div>
         <div className="bg-secondary/30 rounded-lg p-3">
           <div className={`text-2xl font-bold ${remaining < 0 ? "text-red-400" : "text-blue-400"}`}>
-            {remaining}
+            {formatCalories(remaining)}
           </div>
           <div className="text-xs text-muted-foreground">Remaining</div>
         </div>
