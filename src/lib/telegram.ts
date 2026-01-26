@@ -90,6 +90,65 @@ export async function sendTelegramMessage(
 }
 
 /**
+ * Helper function to delay execution
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Send multiple messages via Telegram, split by double newlines
+ * @param chatId - Telegram chat ID
+ * @param text - Message text (will be split by \n\n)
+ * @param parseMode - Optional parse mode ('MarkdownV2', 'Markdown', 'HTML')
+ * @returns Promise with results for all messages
+ */
+export async function sendTelegramMessages(
+  chatId: number | string,
+  text: string,
+  parseMode?: 'MarkdownV2' | 'Markdown' | 'HTML'
+): Promise<{ success: boolean; messageIds: number[]; errors: string[] }> {
+  // Split by double newline and filter empty segments
+  const segments = text.split('\n\n').filter(segment => segment.trim().length > 0);
+
+  // If only one segment, use single message function
+  if (segments.length <= 1) {
+    const result = await sendTelegramMessage(chatId, text, parseMode);
+    return {
+      success: result.success,
+      messageIds: result.messageId ? [result.messageId] : [],
+      errors: result.error ? [result.error] : [],
+    };
+  }
+
+  const messageIds: number[] = [];
+  const errors: string[] = [];
+
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+
+    // Add delay between messages (except for the first one)
+    if (i > 0) {
+      await delay(150);
+    }
+
+    const result = await sendTelegramMessage(chatId, segment, parseMode);
+
+    if (result.success && result.messageId) {
+      messageIds.push(result.messageId);
+    } else if (result.error) {
+      errors.push(result.error);
+    }
+  }
+
+  return {
+    success: errors.length === 0,
+    messageIds,
+    errors,
+  };
+}
+
+/**
  * Set webhook for Telegram bot
  * @param url - The webhook URL
  * @returns Promise with success status

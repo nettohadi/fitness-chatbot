@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { sendTelegramMessage, sendChatAction, formatForMarkdownV2 } from '@/lib/telegram';
+import { sendTelegramMessage, sendTelegramMessages, sendChatAction, formatForMarkdownV2 } from '@/lib/telegram';
 import { findOrCreateUser, updateFitnessProfile, updateUserProfile } from '@/lib/db/users';
 import { inferTimezoneFromLanguage, getUserTimezone } from '@/lib/utils/timezone';
 import {
@@ -732,7 +732,7 @@ export async function POST(request: NextRequest) {
 
       // Log conversation
       await Promise.all([
-        sendTelegramMessage(chatId, formatForMarkdownV2(responseMessage), 'MarkdownV2'),
+        sendTelegramMessages(chatId, formatForMarkdownV2(responseMessage), 'MarkdownV2'),
         logConversationPair(userIdentifier, caption ? `[PHOTO] ${caption}` : '[PHOTO]', messageWithData),
       ]);
 
@@ -852,7 +852,7 @@ export async function POST(request: NextRequest) {
 
       // Send cleaned message to Telegram, but log original message with tags to DB
       await Promise.all([
-        sendTelegramMessage(chatId, formatForMarkdownV2(responseMessage), 'MarkdownV2'),
+        sendTelegramMessages(chatId, formatForMarkdownV2(responseMessage), 'MarkdownV2'),
         logConversationPair(userIdentifier, messageText, messageForLog),
       ]);
 
@@ -889,7 +889,7 @@ export async function POST(request: NextRequest) {
 
         // Send message and log both incoming + outgoing
         await Promise.all([
-          sendTelegramMessage(chatId, formatForMarkdownV2(responseText), 'MarkdownV2'),
+          sendTelegramMessages(chatId, formatForMarkdownV2(responseText), 'MarkdownV2'),
           logConversationPair(userIdentifier, messageText, responseText),
         ]);
 
@@ -922,7 +922,7 @@ export async function POST(request: NextRequest) {
 
         // Send message and log both incoming + outgoing
         await Promise.all([
-          sendTelegramMessage(chatId, formatForMarkdownV2(responseText), 'MarkdownV2'),
+          sendTelegramMessages(chatId, formatForMarkdownV2(responseText), 'MarkdownV2'),
           logConversationPair(userIdentifier, messageText, responseText),
         ]);
       } else {
@@ -931,7 +931,7 @@ export async function POST(request: NextRequest) {
 
         // Send message and log both incoming + outgoing
         await Promise.all([
-          sendTelegramMessage(chatId, formatForMarkdownV2(cleanedResponse), 'MarkdownV2'),
+          sendTelegramMessages(chatId, formatForMarkdownV2(cleanedResponse), 'MarkdownV2'),
           logConversationPair(userIdentifier, messageText, cleanedResponse),
         ]);
       }
@@ -1041,7 +1041,7 @@ export async function POST(request: NextRequest) {
 
     // Send message and log both incoming + outgoing
     await Promise.all([
-      sendTelegramMessage(chatId, formattedMessage, 'MarkdownV2'),
+      sendTelegramMessages(chatId, formattedMessage, 'MarkdownV2'),
       logConversationPair(userIdentifier, messageText, responseMessage),
     ]);
 
