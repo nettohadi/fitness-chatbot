@@ -106,6 +106,7 @@ export default function FoodEntryForm({ isOpen, onClose, entry }: FoodEntryFormP
         toast({
           title: "Entry updated",
           description: `"${foodDescription}" has been updated.`,
+          variant: "success",
         })
       } else {
         await addEntry.mutateAsync({
@@ -116,6 +117,7 @@ export default function FoodEntryForm({ isOpen, onClose, entry }: FoodEntryFormP
         toast({
           title: "Entry added",
           description: `"${foodDescription}" (${calorieValue} kcal) has been logged.`,
+          variant: "success",
         })
       }
       onClose()

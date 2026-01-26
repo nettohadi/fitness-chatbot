@@ -43,6 +43,7 @@ export default function FoodsTab({ entries }: FoodsTabProps) {
       toast({
         title: "Entry deleted",
         description: `"${entryToDelete.foodDescription || "Food entry"}" has been removed.`,
+        variant: "success",
       })
       setDeleteDialogOpen(false)
       setEntryToDelete(null)

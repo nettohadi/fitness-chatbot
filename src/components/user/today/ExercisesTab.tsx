@@ -43,6 +43,7 @@ export default function ExercisesTab({ entries }: ExercisesTabProps) {
       toast({
         title: "Entry deleted",
         description: `"${entryToDelete.exerciseType}" exercise has been removed.`,
+        variant: "success",
       })
       setDeleteDialogOpen(false)
       setEntryToDelete(null)

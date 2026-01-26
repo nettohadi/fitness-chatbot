@@ -115,6 +115,7 @@ export default function ExerciseEntryForm({ isOpen, onClose, entry }: ExerciseEn
         toast({
           title: "Entry updated",
           description: `"${exerciseType.trim()}" has been updated.`,
+          variant: "success",
         })
       } else {
         await addEntry.mutateAsync({
@@ -126,6 +127,7 @@ export default function ExerciseEntryForm({ isOpen, onClose, entry }: ExerciseEn
         toast({
           title: "Entry added",
           description: `"${exerciseType.trim()}" (${duration} min, -${calories} kcal) has been logged.`,
+          variant: "success",
         })
       }
       onClose()
