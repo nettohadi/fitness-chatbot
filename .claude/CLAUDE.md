@@ -4,28 +4,29 @@
 
 When debugging bot issues, use the Debug API to fetch logs from production.
 
-### Environment Variables (from .env)
-- `DEBUG_API_TOKEN`: dbg_fitness_2026_xK9mP3nQ7wL5vR8t
-- `VERCEL_DOMAIN`: https://fitness-chatbot-rosy.vercel.app/
+### Environment Variables
+Get these values from your `.env` file:
+- `DEBUG_API_TOKEN` - Authorization token for debug API
+- `VERCEL_DOMAIN` - Production domain (e.g., https://fitness-chatbot-rosy.vercel.app/)
 
 ### Common Commands
 
 ```bash
 # Recent API logs (last 5)
-curl -s -H "Authorization: Bearer dbg_fitness_2026_xK9mP3nQ7wL5vR8t" \
-  "https://fitness-chatbot-rosy.vercel.app/api/admin/debug?type=logs&limit=5" | jq '.'
+curl -s -H "Authorization: Bearer $DEBUG_API_TOKEN" \
+  "$VERCEL_DOMAIN/api/admin/debug?type=logs&limit=5" | jq '.'
 
 # Get full log by ID
-curl -s -H "Authorization: Bearer dbg_fitness_2026_xK9mP3nQ7wL5vR8t" \
-  "https://fitness-chatbot-rosy.vercel.app/api/admin/debug?type=full-log&id=LOG_ID" | jq '.'
+curl -s -H "Authorization: Bearer $DEBUG_API_TOKEN" \
+  "$VERCEL_DOMAIN/api/admin/debug?type=full-log&id=LOG_ID" | jq '.'
 
 # Recent messages
-curl -s -H "Authorization: Bearer dbg_fitness_2026_xK9mP3nQ7wL5vR8t" \
-  "https://fitness-chatbot-rosy.vercel.app/api/admin/debug?type=messages&limit=10" | jq '.'
+curl -s -H "Authorization: Bearer $DEBUG_API_TOKEN" \
+  "$VERCEL_DOMAIN/api/admin/debug?type=messages&limit=10" | jq '.'
 
 # Calorie entries
-curl -s -H "Authorization: Bearer dbg_fitness_2026_xK9mP3nQ7wL5vR8t" \
-  "https://fitness-chatbot-rosy.vercel.app/api/admin/debug?type=calories&limit=10" | jq '.'
+curl -s -H "Authorization: Bearer $DEBUG_API_TOKEN" \
+  "$VERCEL_DOMAIN/api/admin/debug?type=calories&limit=10" | jq '.'
 ```
 
 ### Available Types
