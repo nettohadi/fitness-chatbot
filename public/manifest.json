@@ -1,8 +1,8 @@
 {
-  "name": "Fitness Bot Admin",
+  "name": "Fitness Bot",
   "short_name": "Fitness Bot",
   "description": "Track your daily calorie intake and exercise",
-  "start_url": "/admin/dashboard",
+  "start_url": "/",
   "display": "standalone",
   "background_color": "#09090b",
   "theme_color": "#09090b",
