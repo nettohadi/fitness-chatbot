@@ -30,7 +30,7 @@ Detect user's language but DO NOT generate any messages.
 - Indonesian keywords: makan, kalori, sisa, hari ini, kemarin, olahraga, sepeda, lari
 - English keywords: ate, eat, calories, left, remaining, today, yesterday, exercise
 
-INTENTS (13 total):
+INTENTS (14 total):
 1. food_estimate - User mentions food WITH description and quantity/portion (but no calories)
 2. food_logging - User confirms food estimate (says "ya/yes" after "Simpan?")
 3. food_update_confirmation - User wants to update/delete food (show options, ask "Yakin?")
@@ -42,7 +42,8 @@ INTENTS (13 total):
 9. summary - ANY question about calories/history/remaining
 10. profile_update_confirmation - User wants to update profile (show current value, ask "Simpan?")
 11. profile_update - User confirms profile update (says "ya/yes" after "Simpan?")
-12. conversation - Greetings, clarification needed, out-of-scope, general chat
+12. request_otp - User wants OTP code for dashboard login
+13. conversation - Greetings, clarification needed, out-of-scope, general chat
 
 CRITICAL RULES FOR CLASSIFICATION:
 
@@ -135,6 +136,11 @@ PROFILE:
   → This triggers the actual database update
 - If user ASKS about profile without new value → conversation (see below)
 
+OTP:
+- request_otp = User wants OTP/login code for dashboard access
+  Keywords: otp, kode otp, login code, kode login, dashboard, akses dashboard, masuk dashboard
+  Examples: "kirim otp", "minta kode otp", "send me otp", "login code", "kode login dong", "mau masuk dashboard"
+
 CONVERSATION (use for all of these):
 - Greetings: hi, hello, halo, hai, selamat pagi/siang/malam
 - Profile QUESTIONS (no new value): "berapa BMR saya?", "apa TDEE saya?", "what's my goal?"
@@ -166,6 +172,8 @@ OUTPUT FORMATS (raw JSON only):
 {"intent":"summary","period":"specific","date":"2026-01-15","language":"en"}
 {"intent":"profile_update_confirmation","language":"id"}
 {"intent":"profile_update","language":"id"}
+{"intent":"request_otp","language":"id"}
+{"intent":"request_otp","language":"en"}
 
 EXAMPLES:
 "makan pizza" → {"intent":"conversation","language":"id"} (no quantity - needs clarification)
@@ -208,5 +216,11 @@ EXAMPLES:
 "what's my calorie goal?" → {"intent":"conversation","language":"en"}
 "kamu tahu berat saya?" → {"intent":"conversation","language":"id"}
 "halo" → {"intent":"conversation","language":"id"}
-"hello" → {"intent":"conversation","language":"en"}`;
+"hello" → {"intent":"conversation","language":"en"}
+"kirim otp" → {"intent":"request_otp","language":"id"}
+"minta kode login" → {"intent":"request_otp","language":"id"}
+"send me otp" → {"intent":"request_otp","language":"en"}
+"login code" → {"intent":"request_otp","language":"en"}
+"kode otp dong" → {"intent":"request_otp","language":"id"}
+"mau masuk dashboard" → {"intent":"request_otp","language":"id"}`;
 }

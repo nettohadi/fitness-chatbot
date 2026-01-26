@@ -3,46 +3,14 @@
 import { signIn } from "next-auth/react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useState, FormEvent, Suspense } from "react"
-import { Dumbbell, Loader2, Phone, KeyRound } from "lucide-react"
+import { Dumbbell, Loader2, KeyRound, MessageCircle } from "lucide-react"
 
 function UserLoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [phoneNumber, setPhoneNumber] = useState("")
   const [otpCode, setOtpCode] = useState("")
-  const [step, setStep] = useState<"phone" | "otp">("phone")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
-  const [message, setMessage] = useState("")
-
-  const handleRequestOtp = async (e: FormEvent) => {
-    e.preventDefault()
-    setError("")
-    setLoading(true)
-
-    try {
-      const response = await fetch("/api/user/otp/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || "Failed to send OTP")
-        setLoading(false)
-        return
-      }
-
-      setMessage("OTP sent! Check your Telegram/WhatsApp.")
-      setStep("otp")
-      setLoading(false)
-    } catch (err) {
-      setError("An error occurred. Please try again.")
-      setLoading(false)
-    }
-  }
 
   const handleVerifyOtp = async (e: FormEvent) => {
     e.preventDefault()
@@ -50,8 +18,24 @@ function UserLoginForm() {
     setLoading(true)
 
     try {
+      // Step 1: Look up phone number from OTP code
+      const verifyResponse = await fetch("/api/user/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ otpCode }),
+      })
+
+      const verifyData = await verifyResponse.json()
+
+      if (!verifyResponse.ok) {
+        setError(verifyData.error || "Invalid or expired OTP code")
+        setLoading(false)
+        return
+      }
+
+      // Step 2: Sign in with phone number and OTP
       const result = await signIn("user-otp", {
-        phoneNumber,
+        phoneNumber: verifyData.phoneNumber,
         otpCode,
         redirect: false,
       })
@@ -86,103 +70,38 @@ function UserLoginForm() {
             Dashboard Login
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            {step === "phone"
-              ? "Enter your phone number to receive an OTP"
-              : "Enter the OTP sent to your phone"}
+            Enter the OTP code sent to your Telegram
           </p>
         </div>
 
-        {/* Step indicator */}
-        <div className="flex items-center justify-center gap-2">
-          <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
-              step === "phone"
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-muted-foreground"
-            }`}
-          >
-            <Phone className="h-4 w-4" />
-            Phone
-          </div>
-          <div className="w-8 h-0.5 bg-border" />
-          <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
-              step === "otp"
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-muted-foreground"
-            }`}
-          >
-            <KeyRound className="h-4 w-4" />
-            OTP
+        {/* Instruction Box */}
+        <div className="rounded-lg bg-secondary/50 border border-border p-4">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <MessageCircle className="h-5 w-5 text-primary" />
+            </div>
+            <div className="text-sm">
+              <p className="font-medium text-foreground">How to get OTP code:</p>
+              <p className="text-muted-foreground mt-1">
+                Open Telegram and send <code className="bg-secondary px-1 py-0.5 rounded text-primary">&quot;kirim otp&quot;</code> or <code className="bg-secondary px-1 py-0.5 rounded text-primary">&quot;send me otp&quot;</code> to the Fitness Bot.
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Phone Form */}
-        {step === "phone" && (
-          <form className="mt-8 space-y-6" onSubmit={handleRequestOtp}>
-            <div>
-              <label
-                htmlFor="phoneNumber"
-                className="block text-sm font-medium text-foreground mb-1"
-              >
-                Phone Number
-              </label>
-              <input
-                id="phoneNumber"
-                name="phoneNumber"
-                type="tel"
-                autoComplete="tel"
-                required
-                className="appearance-none relative block w-full px-4 py-3 border border-border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
-                placeholder="+62812345678"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                disabled={loading}
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Use the same number registered with the bot
-              </p>
-            </div>
-
-            {error && (
-              <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4">
-                <p className="text-sm font-medium text-destructive">{error}</p>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Sending OTP...
-                </>
-              ) : (
-                "Send OTP"
-              )}
-            </button>
-          </form>
-        )}
-
         {/* OTP Form */}
-        {step === "otp" && (
-          <form className="mt-8 space-y-6" onSubmit={handleVerifyOtp}>
-            {message && (
-              <div className="rounded-lg bg-primary/10 border border-primary/20 p-4">
-                <p className="text-sm font-medium text-primary">{message}</p>
+        <form className="mt-8 space-y-6" onSubmit={handleVerifyOtp}>
+          <div>
+            <label
+              htmlFor="otpCode"
+              className="block text-sm font-medium text-foreground mb-1"
+            >
+              OTP Code
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <KeyRound className="h-5 w-5 text-muted-foreground" />
               </div>
-            )}
-
-            <div>
-              <label
-                htmlFor="otpCode"
-                className="block text-sm font-medium text-foreground mb-1"
-              >
-                OTP Code
-              </label>
               <input
                 id="otpCode"
                 name="otpCode"
@@ -191,7 +110,7 @@ function UserLoginForm() {
                 pattern="[0-9]*"
                 autoComplete="one-time-code"
                 required
-                className="appearance-none relative block w-full px-4 py-3 border border-border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors text-center text-2xl tracking-widest"
+                className="appearance-none relative block w-full pl-10 px-4 py-3 border border-border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors text-center text-2xl tracking-widest"
                 placeholder="000000"
                 maxLength={6}
                 value={otpCode}
@@ -199,45 +118,29 @@ function UserLoginForm() {
                 disabled={loading}
               />
             </div>
+          </div>
 
-            {error && (
-              <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4">
-                <p className="text-sm font-medium text-destructive">{error}</p>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <button
-                type="submit"
-                disabled={loading || otpCode.length < 6}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Verifying...
-                  </>
-                ) : (
-                  "Verify & Login"
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("phone")
-                  setOtpCode("")
-                  setError("")
-                  setMessage("")
-                }}
-                disabled={loading}
-                className="w-full py-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Use a different number
-              </button>
+          {error && (
+            <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4">
+              <p className="text-sm font-medium text-destructive">{error}</p>
             </div>
-          </form>
-        )}
+          )}
+
+          <button
+            type="submit"
+            disabled={loading || otpCode.length < 6}
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Verifying...
+              </>
+            ) : (
+              "Login"
+            )}
+          </button>
+        </form>
 
         <div className="text-center">
           <p className="text-xs text-muted-foreground">

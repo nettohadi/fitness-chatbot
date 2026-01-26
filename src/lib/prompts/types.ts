@@ -15,7 +15,8 @@ export type Intent =
   | 'exercise_update' // User confirms exercise update/delete - execute pending action
   | 'summary'
   | 'profile_update_confirmation' // User provides profile update - show current vs new, ask "Simpan?"
-  | 'profile_update'; // User confirms profile update - execute pending action
+  | 'profile_update' // User confirms profile update - execute pending action
+  | 'request_otp'; // User wants OTP for dashboard login
 
 // Supported languages
 export type Language = 'id' | 'en';

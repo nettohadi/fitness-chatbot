@@ -5,8 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Session } from "next-auth"
 import {
-  LayoutDashboard,
-  Utensils,
+  CalendarDays,
   Dumbbell,
   User,
   LogOut,
@@ -22,19 +21,9 @@ interface UserSidebarProps {
 
 const navItems = [
   {
-    name: "Overview",
+    name: "Today",
     href: "/dashboard",
-    icon: LayoutDashboard,
-  },
-  {
-    name: "Calories",
-    href: "/dashboard/calories",
-    icon: Utensils,
-  },
-  {
-    name: "Exercises",
-    href: "/dashboard/exercises",
-    icon: Dumbbell,
+    icon: CalendarDays,
   },
   {
     name: "Profile",

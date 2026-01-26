@@ -81,3 +81,32 @@ export async function cleanupExpiredOtpSessions(): Promise<number> {
 
   return result.count
 }
+
+/**
+ * Look up phone number by OTP code (without verifying/marking as used)
+ * Used for Telegram-first OTP flow where user doesn't know their phone number
+ * The actual verification is done by auth.ts
+ * @param otpCode - OTP code to lookup
+ * @returns Phone number if valid, null otherwise
+ */
+export async function lookupOtpByCode(otpCode: string): Promise<string | null> {
+  const otpSession = await prisma.otpSession.findFirst({
+    where: {
+      otpCode,
+      verified: false,
+      expiresAt: {
+        gt: new Date(), // Not expired
+      },
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  })
+
+  if (!otpSession) {
+    return null
+  }
+
+  // Don't mark as verified here - auth.ts will do that
+  return otpSession.phoneNumber
+}

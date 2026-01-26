@@ -570,6 +570,13 @@ async function handleMessageWithIntentRouting(
       return { message: noActionMsg, language };
     }
 
+    case 'request_otp': {
+      // User wants OTP code for dashboard login
+      const { processOtpRequest } = await import('@/lib/services/otpProcessor');
+      const result = await processOtpRequest(user.phoneNumber, language);
+      return { message: result.message, language };
+    }
+
     default:
       // Fallback to conversation - NEVER use intentResult.message as it might be LLM hallucination
       // Instead, call processConversation to generate a proper response
