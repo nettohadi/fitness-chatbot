@@ -17,7 +17,8 @@ interface FoodEntryFormProps {
 }
 
 export default function FoodEntryForm({ isOpen, onClose, entry }: FoodEntryFormProps) {
-  const [foodDescription, setFoodDescription] = useState("")
+  const [foodName, setFoodName] = useState("")
+  const [portion, setPortion] = useState("")
   const [calories, setCalories] = useState("")
   const [isEstimatedByAi, setIsEstimatedByAi] = useState(false)
   const [estimateError, setEstimateError] = useState("")
@@ -28,15 +29,30 @@ export default function FoodEntryForm({ isOpen, onClose, entry }: FoodEntryFormP
 
   const isEditing = !!entry
 
+  // Parse food description into name and portion when editing
+  const parseDescription = (desc: string) => {
+    // Try to extract portion (e.g., "100g", "2 porsi", "1 slice")
+    const portionMatch = desc.match(/(\d+\s*(?:g|gr|gram|kg|ml|l|porsi|pcs|slice|slices|piece|pieces|cup|cups|bowl|bowls|plate|plates|sendok|sdm|sdt)?)\s*$/i)
+    if (portionMatch) {
+      const portionPart = portionMatch[1]
+      const namePart = desc.slice(0, desc.lastIndexOf(portionPart)).trim()
+      return { name: namePart || desc, portion: portionPart }
+    }
+    return { name: desc, portion: "" }
+  }
+
   // Reset form when modal opens/closes or entry changes
   useEffect(() => {
     if (isOpen) {
       if (entry) {
-        setFoodDescription(entry.foodDescription || "")
+        const parsed = parseDescription(entry.foodDescription || "")
+        setFoodName(parsed.name)
+        setPortion(parsed.portion)
         setCalories(entry.calories.toString())
         setIsEstimatedByAi(entry.estimatedByAi)
       } else {
-        setFoodDescription("")
+        setFoodName("")
+        setPortion("")
         setCalories("")
         setIsEstimatedByAi(false)
       }
@@ -45,15 +61,16 @@ export default function FoodEntryForm({ isOpen, onClose, entry }: FoodEntryFormP
   }, [isOpen, entry])
 
   const handleEstimate = async () => {
-    if (!foodDescription.trim()) {
-      setEstimateError("Please enter a food description first")
+    if (!foodName.trim()) {
+      setEstimateError("Please enter a food name first")
       return
     }
 
     setEstimateError("")
     try {
       const result = await estimateCalories.mutateAsync({
-        foodName: foodDescription,
+        foodName: foodName.trim(),
+        portion: portion.trim() || undefined,
       })
       setCalories(result.estimatedCalories.toString())
       setIsEstimatedByAi(result.source === "ai")
@@ -70,18 +87,23 @@ export default function FoodEntryForm({ isOpen, onClose, entry }: FoodEntryFormP
       return
     }
 
+    // Combine food name and portion for description
+    const foodDescription = portion.trim()
+      ? `${foodName.trim()} ${portion.trim()}`
+      : foodName.trim()
+
     try {
       if (isEditing && entry) {
         await updateEntry.mutateAsync({
           id: entry.id,
           data: {
-            foodDescription: foodDescription.trim() || undefined,
+            foodDescription: foodDescription || undefined,
             calories: calorieValue,
           },
         })
       } else {
         await addEntry.mutateAsync({
-          foodDescription: foodDescription.trim(),
+          foodDescription,
           calories: calorieValue,
           estimatedByAi: isEstimatedByAi,
         })
@@ -103,20 +125,39 @@ export default function FoodEntryForm({ isOpen, onClose, entry }: FoodEntryFormP
       size="sm"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Food Description */}
+        {/* Food Name */}
         <div>
           <label
-            htmlFor="foodDescription"
+            htmlFor="foodName"
             className="block text-sm font-medium text-foreground mb-1"
           >
-            Food Description
+            Food Name
           </label>
           <input
-            id="foodDescription"
+            id="foodName"
             type="text"
-            value={foodDescription}
-            onChange={(e) => setFoodDescription(e.target.value)}
-            placeholder="e.g., Nasi goreng 150g"
+            value={foodName}
+            onChange={(e) => setFoodName(e.target.value)}
+            placeholder="e.g., Nasi goreng, Pizza"
+            className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            disabled={isLoading}
+          />
+        </div>
+
+        {/* Portion */}
+        <div>
+          <label
+            htmlFor="portion"
+            className="block text-sm font-medium text-foreground mb-1"
+          >
+            Portion
+          </label>
+          <input
+            id="portion"
+            type="text"
+            value={portion}
+            onChange={(e) => setPortion(e.target.value)}
+            placeholder="e.g., 150g, 2 slices, 1 porsi"
             className="w-full px-3 py-2 border border-border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
             disabled={isLoading}
           />
@@ -148,7 +189,7 @@ export default function FoodEntryForm({ isOpen, onClose, entry }: FoodEntryFormP
             <button
               type="button"
               onClick={handleEstimate}
-              disabled={isEstimating || isLoading || !foodDescription.trim()}
+              disabled={isEstimating || isLoading || !foodName.trim()}
               className="px-3 py-2 bg-secondary hover:bg-secondary/80 text-foreground rounded-lg flex items-center gap-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               title="Estimate calories with AI"
             >

@@ -142,10 +142,16 @@ function UserLoginForm() {
           </button>
         </form>
 
-        <div className="text-center">
+        <div className="text-center space-y-2">
           <p className="text-xs text-muted-foreground">
             Fitness Chatbot Dashboard
           </p>
+          <a
+            href="/admin/login"
+            className="text-xs text-muted-foreground hover:text-primary transition-colors"
+          >
+            Admin Login
+          </a>
         </div>
       </div>
     </div>
