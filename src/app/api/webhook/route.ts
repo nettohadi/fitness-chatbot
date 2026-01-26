@@ -1469,7 +1469,11 @@ async function executeAction(
           action.data.activityLevel
         );
 
-        console.log('📊 Calculated metrics:', JSON.stringify(metrics, null, 2));
+        // Apply deficit target to calculate daily calorie goal
+        const deficitTargetValue = action.data.deficitTarget ?? 500;
+        const dailyCalorieGoalWithDeficit = metrics.tdee - deficitTargetValue;
+
+        console.log('📊 Calculated metrics:', JSON.stringify({ ...metrics, dailyCalorieGoal: dailyCalorieGoalWithDeficit, deficitTarget: deficitTargetValue }, null, 2));
 
         // Save profile to database (including optional name and deficit target)
         const updateResult = await updateFitnessProfile(
@@ -1481,8 +1485,8 @@ async function executeAction(
           action.data.activityLevel,
           metrics.bmr,
           metrics.tdee,
-          metrics.dailyCalorieGoal,
-          action.data.deficitTarget,
+          dailyCalorieGoalWithDeficit,
+          action.data.deficitTarget ?? deficitTargetValue,
           action.data.fullName,
           action.data.nickname
         );

@@ -184,7 +184,7 @@ export async function GET(request: NextRequest) {
         // Get calorie entries with full date info for debugging timezone issues
         const where: any = {};
         if (userId) where.userId = userId;
-        if (dateFilter) where.createdAt = dateFilter;
+        if (dateFilter) where.entryDate = dateFilter;
 
         // If phone provided, find user first
         if (phone) {
@@ -234,7 +234,7 @@ export async function GET(request: NextRequest) {
         // Get exercise entries with full date info for debugging timezone issues
         const where: any = {};
         if (userId) where.userId = userId;
-        if (dateFilter) where.createdAt = dateFilter;
+        if (dateFilter) where.entryDate = dateFilter;
 
         // If phone provided, find user first
         if (phone) {

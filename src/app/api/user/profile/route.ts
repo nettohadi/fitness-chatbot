@@ -76,11 +76,20 @@ export async function PUT(request: NextRequest) {
           activityLevel
         )
 
+        // Calculate daily goal based on deficit target if set
+        const deficitTarget = body.deficitTarget ?? (currentUser.deficitTarget ? Number(currentUser.deficitTarget) : null)
+        let dailyCalorieGoal = metrics.dailyCalorieGoal // defaults to TDEE (maintenance)
+
+        if (deficitTarget && deficitTarget > 0) {
+          // User has a deficit target, so dailyCalorieGoal = TDEE - deficitTarget
+          dailyCalorieGoal = metrics.tdee - deficitTarget
+        }
+
         updateData = {
           ...updateData,
           bmr: metrics.bmr,
           tdee: metrics.tdee,
-          dailyCalorieGoal: body.dailyCalorieGoal ?? metrics.dailyCalorieGoal,
+          dailyCalorieGoal: body.dailyCalorieGoal ?? dailyCalorieGoal,
         }
       }
     }
