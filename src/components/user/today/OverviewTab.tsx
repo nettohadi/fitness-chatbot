@@ -10,12 +10,13 @@ interface OverviewTabProps {
 
 export default function OverviewTab({ data }: OverviewTabProps) {
   const { user, today } = data
-  const dailyGoal = user.dailyCalorieGoal || 0
+  const baseGoal = user.dailyCalorieGoal || 0
   const consumed = today.totalCaloriesConsumed
   const burned = today.totalCaloriesBurned
-  const remaining = dailyGoal - consumed + burned
-  const totalQuote = dailyGoal + burned
-  const percentage = totalQuote > 0 ? (consumed / totalQuote) * 100 : 0
+  // Daily goal = TDEE - deficit target + calories burned
+  const dailyGoal = baseGoal + burned
+  const remaining = dailyGoal - consumed
+  const percentage = dailyGoal > 0 ? (consumed / dailyGoal) * 100 : 0
 
   return (
     <div className="space-y-6">

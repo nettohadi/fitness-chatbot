@@ -361,7 +361,7 @@ export default function ProfilePage() {
             </div>
 
             {profile?.dailyCalorieGoal && (
-              <div className="flex flex-row justify-center bg-primary/10 rounded-lg border border-primary/20">
+              <div className="flex flex-row justify-center bg-primary/10 rounded-lg border border-primary/20 mb-6">
                 <div className="p-4 flex flex-col items-center">
                   <p className="text-sm text-muted-foreground">Daily Calorie Goal</p>
                   <p className="text-2xl font-bold text-primary">
