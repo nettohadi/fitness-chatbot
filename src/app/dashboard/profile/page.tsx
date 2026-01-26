@@ -384,7 +384,7 @@ export default function ProfilePage() {
         )}
 
         {/* Submit Button */}
-        <div className="fixed bottom-0 w-full  bg-background pt-4 pb-6 mx-auto px-4">
+        <div className="fixed bottom-0 left-0 right-0 lg:ml-[256px] flex justify-center bg-background pt-4 pb-6  px-4">
           <button
             type="submit"
             disabled={updateProfile.isPending || !isDirty}
