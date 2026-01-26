@@ -26,7 +26,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Fitness Bot Admin",
+  title: "Fitness Bot",
   description: "Track your daily calorie intake and exercise",
   manifest: "/manifest.json",
   appleWebApp: {

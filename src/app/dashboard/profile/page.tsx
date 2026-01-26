@@ -2,22 +2,7 @@
 
 import { useState, useEffect, FormEvent } from "react"
 import { Loader2, Save, User, Activity, Scale, Ruler } from "lucide-react"
-
-interface UserProfile {
-  id: string
-  phoneNumber: string
-  fullName: string | null
-  nickname: string | null
-  age: number | null
-  gender: string | null
-  weightKg: number | null
-  heightCm: number | null
-  activityLevel: string | null
-  bmr: number | null
-  tdee: number | null
-  dailyCalorieGoal: number | null
-  timezone: string | null
-}
+import { useProfileData, useUpdateProfile, ProfileUpdateData } from "@/lib/hooks/useProfileData"
 
 const ACTIVITY_LEVELS = [
   { value: "sedentary", label: "Sedentary", description: "Little or no exercise" },
@@ -33,11 +18,8 @@ const GENDERS = [
 ]
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState<UserProfile | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState("")
-  const [success, setSuccess] = useState("")
+  const { data: profile, isLoading, error: fetchError } = useProfileData()
+  const updateProfile = useUpdateProfile()
 
   // Form state
   const [fullName, setFullName] = useState("")
@@ -47,105 +29,83 @@ export default function ProfilePage() {
   const [weightKg, setWeightKg] = useState("")
   const [heightCm, setHeightCm] = useState("")
   const [activityLevel, setActivityLevel] = useState("")
+  const [deficitTarget, setDeficitTarget] = useState("")
+  const [success, setSuccess] = useState("")
 
+  // Sync form state with fetched profile
   useEffect(() => {
-    fetchProfile()
-  }, [])
-
-  const fetchProfile = async () => {
-    try {
-      const response = await fetch("/api/user/profile")
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || "Failed to load profile")
-        setLoading(false)
-        return
-      }
-
-      const user = data.user
-      setProfile(user)
-      setFullName(user.fullName || "")
-      setNickname(user.nickname || "")
-      setAge(user.age?.toString() || "")
-      setGender(user.gender || "")
-      setWeightKg(user.weightKg?.toString() || "")
-      setHeightCm(user.heightCm?.toString() || "")
-      setActivityLevel(user.activityLevel || "")
-      setLoading(false)
-    } catch (err) {
-      setError("Failed to load profile")
-      setLoading(false)
+    if (profile) {
+      setFullName(profile.fullName || "")
+      setNickname(profile.nickname || "")
+      setAge(profile.age?.toString() || "")
+      setGender(profile.gender || "")
+      setWeightKg(profile.weightKg?.toString() || "")
+      setHeightCm(profile.heightCm?.toString() || "")
+      setActivityLevel(profile.activityLevel || "")
+      setDeficitTarget(profile.deficitTarget?.toString() || "")
     }
-  }
+  }, [profile])
+
+  // Clear success message after 3 seconds
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(""), 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [success])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    setError("")
     setSuccess("")
-    setSaving(true)
 
-    try {
-      const updates: Record<string, string | number | null> = {}
+    const updates: ProfileUpdateData = {}
 
-      if (fullName !== (profile?.fullName || "")) {
-        updates.fullName = fullName || null
-      }
-      if (nickname !== (profile?.nickname || "")) {
-        updates.nickname = nickname || null
-      }
-      if (age !== (profile?.age?.toString() || "")) {
-        updates.age = age ? parseInt(age) : null
-      }
-      if (gender !== (profile?.gender || "")) {
-        updates.gender = gender || null
-      }
-      if (weightKg !== (profile?.weightKg?.toString() || "")) {
-        updates.weightKg = weightKg ? parseFloat(weightKg) : null
-      }
-      if (heightCm !== (profile?.heightCm?.toString() || "")) {
-        updates.heightCm = heightCm ? parseFloat(heightCm) : null
-      }
-      if (activityLevel !== (profile?.activityLevel || "")) {
-        updates.activityLevel = activityLevel || null
-      }
-
-      if (Object.keys(updates).length === 0) {
-        setSuccess("No changes to save")
-        setSaving(false)
-        return
-      }
-
-      const response = await fetch("/api/user/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || "Failed to update profile")
-        setSaving(false)
-        return
-      }
-
-      setProfile(data.user)
-      setSuccess("Profile updated successfully!")
-      setSaving(false)
-    } catch (err) {
-      setError("Failed to update profile")
-      setSaving(false)
+    if (fullName !== (profile?.fullName || "")) {
+      updates.fullName = fullName || null
     }
+    if (nickname !== (profile?.nickname || "")) {
+      updates.nickname = nickname || null
+    }
+    if (age !== (profile?.age?.toString() || "")) {
+      updates.age = age ? parseInt(age) : null
+    }
+    if (gender !== (profile?.gender || "")) {
+      updates.gender = gender || null
+    }
+    if (weightKg !== (profile?.weightKg?.toString() || "")) {
+      updates.weightKg = weightKg ? parseFloat(weightKg) : null
+    }
+    if (heightCm !== (profile?.heightCm?.toString() || "")) {
+      updates.heightCm = heightCm ? parseFloat(heightCm) : null
+    }
+    if (activityLevel !== (profile?.activityLevel || "")) {
+      updates.activityLevel = activityLevel || null
+    }
+    if (deficitTarget !== (profile?.deficitTarget?.toString() || "")) {
+      updates.deficitTarget = deficitTarget ? parseInt(deficitTarget) : null
+    }
+
+    if (Object.keys(updates).length === 0) {
+      setSuccess("No changes to save")
+      return
+    }
+
+    updateProfile.mutate(updates, {
+      onSuccess: () => {
+        setSuccess("Profile updated successfully!")
+      },
+    })
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
+
+  const error = fetchError?.message || updateProfile.error?.message
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -306,6 +266,33 @@ export default function ProfilePage() {
           </div>
         </div>
 
+        {/* Goal Settings */}
+        <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Ruler className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold text-foreground">Goal Settings</h2>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">
+              Daily Calorie Deficit Target
+            </label>
+            <input
+              type="number"
+              value={deficitTarget}
+              onChange={(e) => setDeficitTarget(e.target.value)}
+              min="0"
+              max="1500"
+              step="50"
+              className="appearance-none relative block w-full px-4 py-3 border border-border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
+              placeholder="500"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Recommended: 300-500 cal/day for sustainable weight loss
+            </p>
+          </div>
+        </div>
+
         {/* Calculated Metrics (Read-only) */}
         {(profile?.bmr || profile?.tdee || profile?.dailyCalorieGoal) && (
           <div className="bg-card border border-border rounded-lg p-6 space-y-4">
@@ -317,13 +304,14 @@ export default function ProfilePage() {
               These are automatically calculated based on your profile
             </p>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               {profile?.bmr && (
                 <div className="p-4 bg-secondary/30 rounded-lg">
                   <p className="text-sm text-muted-foreground">BMR</p>
                   <p className="text-xl font-bold text-foreground">
                     {Math.round(Number(profile.bmr))} cal
                   </p>
+                  <p className="text-xs text-muted-foreground">Basal Metabolic Rate</p>
                 </div>
               )}
               {profile?.tdee && (
@@ -332,17 +320,22 @@ export default function ProfilePage() {
                   <p className="text-xl font-bold text-foreground">
                     {Math.round(Number(profile.tdee))} cal
                   </p>
-                </div>
-              )}
-              {profile?.dailyCalorieGoal && (
-                <div className="p-4 bg-primary/10 rounded-lg">
-                  <p className="text-sm text-muted-foreground">Daily Goal</p>
-                  <p className="text-xl font-bold text-primary">
-                    {Math.round(Number(profile.dailyCalorieGoal))} cal
-                  </p>
+                  <p className="text-xs text-muted-foreground">Total Daily Energy Expenditure</p>
                 </div>
               )}
             </div>
+
+            {profile?.dailyCalorieGoal && (
+              <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
+                <p className="text-sm text-muted-foreground">Daily Calorie Goal</p>
+                <p className="text-2xl font-bold text-primary">
+                  {Math.round(Number(profile.dailyCalorieGoal))} cal
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  TDEE ({Math.round(Number(profile.tdee || 0))}) - Deficit ({Math.round(Number(profile.deficitTarget || 0))})
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -364,10 +357,10 @@ export default function ProfilePage() {
         {/* Submit Button */}
         <button
           type="submit"
-          disabled={saving}
+          disabled={updateProfile.isPending}
           className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {saving ? (
+          {updateProfile.isPending ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
               Saving...
