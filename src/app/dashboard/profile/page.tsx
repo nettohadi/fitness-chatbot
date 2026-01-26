@@ -1,8 +1,12 @@
 "use client"
 
-import { useState, useEffect, FormEvent } from "react"
+import { useEffect } from "react"
+import { useForm } from "react-hook-form"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { z } from "zod"
 import { Loader2, Save, User, Activity, Scale, Ruler } from "lucide-react"
-import { useProfileData, useUpdateProfile, ProfileUpdateData } from "@/lib/hooks/useProfileData"
+import { useProfileData, useUpdateProfile } from "@/lib/hooks/useProfileData"
+import { useToast } from "@/hooks/use-toast"
 
 const ACTIVITY_LEVELS = [
   { value: "sedentary", label: "Sedentary", description: "Little or no exercise" },
@@ -17,84 +21,90 @@ const GENDERS = [
   { value: "female", label: "Female" },
 ]
 
+const profileSchema = z.object({
+  fullName: z.string().optional(),
+  nickname: z.string().optional(),
+  age: z.coerce.number().min(1, "Age is required").max(120, "Age must be less than 120"),
+  gender: z.string().min(1, "Gender is required"),
+  weightKg: z.coerce.number().min(20, "Weight must be at least 20kg").max(300, "Weight must be less than 300kg"),
+  heightCm: z.coerce.number().min(100, "Height must be at least 100cm").max(250, "Height must be less than 250cm"),
+  activityLevel: z.string().min(1, "Activity level is required"),
+  deficitTarget: z.coerce.number().min(0, "Deficit must be at least 0").max(1500, "Deficit must be less than 1500"),
+})
+
+type ProfileFormData = z.infer<typeof profileSchema>
+
 export default function ProfilePage() {
   const { data: profile, isLoading, error: fetchError } = useProfileData()
   const updateProfile = useUpdateProfile()
+  const { toast } = useToast()
 
-  // Form state
-  const [fullName, setFullName] = useState("")
-  const [nickname, setNickname] = useState("")
-  const [age, setAge] = useState("")
-  const [gender, setGender] = useState("")
-  const [weightKg, setWeightKg] = useState("")
-  const [heightCm, setHeightCm] = useState("")
-  const [activityLevel, setActivityLevel] = useState("")
-  const [deficitTarget, setDeficitTarget] = useState("")
-  const [success, setSuccess] = useState("")
+  const {
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors, isDirty },
+  } = useForm<ProfileFormData>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      fullName: "",
+      nickname: "",
+      age: undefined,
+      gender: "",
+      weightKg: undefined,
+      heightCm: undefined,
+      activityLevel: "",
+      deficitTarget: undefined,
+    },
+  })
+
+  const activityLevel = watch("activityLevel")
 
   // Sync form state with fetched profile
   useEffect(() => {
     if (profile) {
-      setFullName(profile.fullName || "")
-      setNickname(profile.nickname || "")
-      setAge(profile.age?.toString() || "")
-      setGender(profile.gender || "")
-      setWeightKg(profile.weightKg?.toString() || "")
-      setHeightCm(profile.heightCm?.toString() || "")
-      setActivityLevel(profile.activityLevel || "")
-      setDeficitTarget(profile.deficitTarget?.toString() || "")
+      reset({
+        fullName: profile.fullName || "",
+        nickname: profile.nickname || "",
+        age: profile.age || undefined,
+        gender: profile.gender || "",
+        weightKg: profile.weightKg || undefined,
+        heightCm: profile.heightCm || undefined,
+        activityLevel: profile.activityLevel || "",
+        deficitTarget: profile.deficitTarget || undefined,
+      })
     }
-  }, [profile])
+  }, [profile, reset])
 
-  // Clear success message after 3 seconds
-  useEffect(() => {
-    if (success) {
-      const timer = setTimeout(() => setSuccess(""), 3000)
-      return () => clearTimeout(timer)
-    }
-  }, [success])
-
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
-    setSuccess("")
-
-    const updates: ProfileUpdateData = {}
-
-    if (fullName !== (profile?.fullName || "")) {
-      updates.fullName = fullName || null
-    }
-    if (nickname !== (profile?.nickname || "")) {
-      updates.nickname = nickname || null
-    }
-    if (age !== (profile?.age?.toString() || "")) {
-      updates.age = age ? parseInt(age) : null
-    }
-    if (gender !== (profile?.gender || "")) {
-      updates.gender = gender || null
-    }
-    if (weightKg !== (profile?.weightKg?.toString() || "")) {
-      updates.weightKg = weightKg ? parseFloat(weightKg) : null
-    }
-    if (heightCm !== (profile?.heightCm?.toString() || "")) {
-      updates.heightCm = heightCm ? parseFloat(heightCm) : null
-    }
-    if (activityLevel !== (profile?.activityLevel || "")) {
-      updates.activityLevel = activityLevel || null
-    }
-    if (deficitTarget !== (profile?.deficitTarget?.toString() || "")) {
-      updates.deficitTarget = deficitTarget ? parseInt(deficitTarget) : null
-    }
-
-    if (Object.keys(updates).length === 0) {
-      setSuccess("No changes to save")
-      return
-    }
-
-    updateProfile.mutate(updates, {
-      onSuccess: () => {
-        setSuccess("Profile updated successfully!")
+  const onSubmit = (data: ProfileFormData) => {
+    updateProfile.mutate(
+      {
+        fullName: data.fullName || null,
+        nickname: data.nickname || null,
+        age: data.age,
+        gender: data.gender,
+        weightKg: data.weightKg,
+        heightCm: data.heightCm,
+        activityLevel: data.activityLevel,
+        deficitTarget: data.deficitTarget,
       },
-    })
+      {
+        onSuccess: () => {
+          toast({
+            title: "Profile updated",
+            description: "Your profile has been saved successfully.",
+          })
+        },
+        onError: (error) => {
+          toast({
+            title: "Error",
+            description: error.message || "Failed to update profile.",
+            variant: "destructive",
+          })
+        },
+      }
+    )
   }
 
   if (isLoading) {
@@ -108,15 +118,17 @@ export default function ProfilePage() {
   const error = fetchError?.message || updateProfile.error?.message
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Profile</h1>
-        <p className="text-muted-foreground">
-          Update your personal information and fitness metrics
-        </p>
+    <div className="space-y-6 max-w-2xl py-4 mx-auto">
+      <div className="flex justify-center">
+        <div className="flex flex-col items-center">
+          <h1 className="text-2xl font-bold text-foreground">Profile</h1>
+          <p className="text-muted-foreground">
+            Update your personal information and fitness metrics
+          </p>
+        </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Personal Info Section */}
         <div className="bg-card border border-border rounded-lg p-6 space-y-4">
           <div className="flex items-center gap-2 mb-4">
@@ -131,8 +143,7 @@ export default function ProfilePage() {
               </label>
               <input
                 type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
+                {...register("fullName")}
                 className="appearance-none relative block w-full px-4 py-3 border border-border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
                 placeholder="Your name"
               />
@@ -144,8 +155,7 @@ export default function ProfilePage() {
               </label>
               <input
                 type="text"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
+                {...register("nickname")}
                 className="appearance-none relative block w-full px-4 py-3 border border-border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
                 placeholder="Nickname"
               />
@@ -155,27 +165,32 @@ export default function ProfilePage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">
-                Age
+                Age <span className="text-destructive">*</span>
               </label>
               <input
                 type="number"
-                value={age}
-                onChange={(e) => setAge(e.target.value)}
+                {...register("age")}
                 min="1"
                 max="120"
-                className="appearance-none relative block w-full px-4 py-3 border border-border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
+                className={`appearance-none relative block w-full px-4 py-3 border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors ${
+                  errors.age ? "border-destructive" : "border-border"
+                }`}
                 placeholder="25"
               />
+              {errors.age && (
+                <p className="text-xs text-destructive mt-1">{errors.age.message}</p>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">
-                Gender
+                Gender <span className="text-destructive">*</span>
               </label>
               <select
-                value={gender}
-                onChange={(e) => setGender(e.target.value)}
-                className="appearance-none relative block w-full px-4 py-3 border border-border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
+                {...register("gender")}
+                className={`appearance-none relative block w-full px-4 py-3 border rounded-lg bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors ${
+                  errors.gender ? "border-destructive" : "border-border"
+                }`}
               >
                 <option value="">Select gender</option>
                 {GENDERS.map((g) => (
@@ -184,6 +199,9 @@ export default function ProfilePage() {
                   </option>
                 ))}
               </select>
+              {errors.gender && (
+                <p className="text-xs text-destructive mt-1">{errors.gender.message}</p>
+              )}
             </div>
           </div>
         </div>
@@ -198,34 +216,42 @@ export default function ProfilePage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">
-                Weight (kg)
+                Weight (kg) <span className="text-destructive">*</span>
               </label>
               <input
                 type="number"
-                value={weightKg}
-                onChange={(e) => setWeightKg(e.target.value)}
+                {...register("weightKg")}
                 min="20"
                 max="300"
                 step="0.1"
-                className="appearance-none relative block w-full px-4 py-3 border border-border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
+                className={`appearance-none relative block w-full px-4 py-3 border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors ${
+                  errors.weightKg ? "border-destructive" : "border-border"
+                }`}
                 placeholder="70"
               />
+              {errors.weightKg && (
+                <p className="text-xs text-destructive mt-1">{errors.weightKg.message}</p>
+              )}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">
-                Height (cm)
+                Height (cm) <span className="text-destructive">*</span>
               </label>
               <input
                 type="number"
-                value={heightCm}
-                onChange={(e) => setHeightCm(e.target.value)}
+                {...register("heightCm")}
                 min="100"
                 max="250"
                 step="0.1"
-                className="appearance-none relative block w-full px-4 py-3 border border-border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
+                className={`appearance-none relative block w-full px-4 py-3 border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors ${
+                  errors.heightCm ? "border-destructive" : "border-border"
+                }`}
                 placeholder="175"
               />
+              {errors.heightCm && (
+                <p className="text-xs text-destructive mt-1">{errors.heightCm.message}</p>
+              )}
             </div>
           </div>
         </div>
@@ -234,7 +260,9 @@ export default function ProfilePage() {
         <div className="bg-card border border-border rounded-lg p-6 space-y-4">
           <div className="flex items-center gap-2 mb-4">
             <Activity className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold text-foreground">Activity Level</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              Activity Level <span className="text-destructive">*</span>
+            </h2>
           </div>
 
           <div className="space-y-2">
@@ -244,15 +272,15 @@ export default function ProfilePage() {
                 className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
                   activityLevel === level.value
                     ? "border-primary bg-primary/5"
+                    : errors.activityLevel
+                    ? "border-destructive hover:bg-secondary/50"
                     : "border-border hover:bg-secondary/50"
                 }`}
               >
                 <input
                   type="radio"
-                  name="activityLevel"
+                  {...register("activityLevel")}
                   value={level.value}
-                  checked={activityLevel === level.value}
-                  onChange={(e) => setActivityLevel(e.target.value)}
                   className="sr-only"
                 />
                 <div>
@@ -264,6 +292,9 @@ export default function ProfilePage() {
               </label>
             ))}
           </div>
+          {errors.activityLevel && (
+            <p className="text-xs text-destructive">{errors.activityLevel.message}</p>
+          )}
         </div>
 
         {/* Goal Settings */}
@@ -275,18 +306,22 @@ export default function ProfilePage() {
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">
-              Daily Calorie Deficit Target
+              Daily Calorie Deficit Target <span className="text-destructive">*</span>
             </label>
             <input
               type="number"
-              value={deficitTarget}
-              onChange={(e) => setDeficitTarget(e.target.value)}
+              {...register("deficitTarget")}
               min="0"
               max="1500"
               step="50"
-              className="appearance-none relative block w-full px-4 py-3 border border-border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors"
+              className={`appearance-none relative block w-full px-4 py-3 border rounded-lg bg-card text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-colors ${
+                errors.deficitTarget ? "border-destructive" : "border-border"
+              }`}
               placeholder="500"
             />
+            {errors.deficitTarget && (
+              <p className="text-xs text-destructive mt-1">{errors.deficitTarget.message}</p>
+            )}
             <p className="text-xs text-muted-foreground mt-1">
               Recommended: 300-500 cal/day for sustainable weight loss
             </p>
@@ -306,7 +341,7 @@ export default function ProfilePage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               {profile?.bmr && (
-                <div className="p-4 bg-secondary/30 rounded-lg">
+                <div className="p-4 bg-secondary/30 rounded-lg flex flex-col items-center">
                   <p className="text-sm text-muted-foreground">BMR</p>
                   <p className="text-xl font-bold text-foreground">
                     {Math.round(Number(profile.bmr))} cal
@@ -315,7 +350,7 @@ export default function ProfilePage() {
                 </div>
               )}
               {profile?.tdee && (
-                <div className="p-4 bg-secondary/30 rounded-lg">
+                <div className="p-4 bg-secondary/30 rounded-lg flex flex-col items-center">
                   <p className="text-sm text-muted-foreground">TDEE</p>
                   <p className="text-xl font-bold text-foreground">
                     {Math.round(Number(profile.tdee))} cal
@@ -326,52 +361,48 @@ export default function ProfilePage() {
             </div>
 
             {profile?.dailyCalorieGoal && (
-              <div className="p-4 bg-primary/10 rounded-lg border border-primary/20">
-                <p className="text-sm text-muted-foreground">Daily Calorie Goal</p>
-                <p className="text-2xl font-bold text-primary">
-                  {Math.round(Number(profile.dailyCalorieGoal))} cal
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  TDEE ({Math.round(Number(profile.tdee || 0))}) - Deficit ({Math.round(Number(profile.deficitTarget || 0))})
-                </p>
+              <div className="flex flex-row justify-center bg-primary/10 rounded-lg border border-primary/20">
+                <div className="p-4 flex flex-col items-center">
+                  <p className="text-sm text-muted-foreground">Daily Calorie Goal</p>
+                  <p className="text-2xl font-bold text-primary">
+                    {Math.round(Number(profile.dailyCalorieGoal) - Number(profile.deficitTarget))} cal
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    TDEE ({Math.round(Number(profile.tdee || 0))}) - Deficit ({Math.round(Number(profile.deficitTarget || 0))})
+                  </p>
+                </div>
               </div>
             )}
           </div>
         )}
 
-        {/* Messages */}
+        {/* Error Message */}
         {error && (
           <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4">
             <p className="text-sm font-medium text-destructive">{error}</p>
           </div>
         )}
 
-        {success && (
-          <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-4">
-            <p className="text-sm font-medium text-green-600 dark:text-green-400">
-              {success}
-            </p>
-          </div>
-        )}
-
         {/* Submit Button */}
-        <button
-          type="submit"
-          disabled={updateProfile.isPending}
-          className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {updateProfile.isPending ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4" />
-              Save Changes
-            </>
-          )}
-        </button>
+        <div className="fixed bottom-0 w-full  bg-background pt-4 pb-6 mx-auto px-4">
+          <button
+            type="submit"
+            disabled={updateProfile.isPending || !isDirty}
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-primary-foreground bg-primary hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors max-w-2xl"
+          >
+            {updateProfile.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="h-4 w-4" />
+                Save Changes
+              </>
+            )}
+          </button>
+        </div>
       </form>
     </div>
   )

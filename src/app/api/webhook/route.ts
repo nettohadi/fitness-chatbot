@@ -104,7 +104,8 @@ async function handleMessageWithIntentRouting(
   console.log('[INTENT-ROUTING] Detected intent:', intentResult.intent);
 
   // STEP 2: Route based on intent
-  const language = intentResult.language || 'id';
+  // Use intent-detected language, then user's stored preference, then default to 'id'
+  const language = intentResult.language || user.preferredLanguage || 'id';
 
   switch (intentResult.intent) {
     case 'conversation': {

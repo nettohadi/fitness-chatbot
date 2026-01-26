@@ -3,7 +3,9 @@
 import { useState } from "react"
 import { Plus, Pencil, Trash2, Sparkles } from "lucide-react"
 import { CalorieEntry, useDeleteCalorieEntry } from "@/lib/hooks/useTodayData"
+import { useToast } from "@/hooks/use-toast"
 import FoodEntryForm from "./FoodEntryForm"
+import ConfirmDialog from "@/components/ui/ConfirmDialog"
 
 interface FoodsTabProps {
   entries: CalorieEntry[]
@@ -12,9 +14,11 @@ interface FoodsTabProps {
 export default function FoodsTab({ entries }: FoodsTabProps) {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingEntry, setEditingEntry] = useState<CalorieEntry | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [entryToDelete, setEntryToDelete] = useState<CalorieEntry | null>(null)
 
   const deleteEntry = useDeleteCalorieEntry()
+  const { toast } = useToast()
 
   const handleAdd = () => {
     setEditingEntry(null)
@@ -26,20 +30,28 @@ export default function FoodsTab({ entries }: FoodsTabProps) {
     setIsFormOpen(true)
   }
 
-  const handleDelete = async (id: string) => {
-    if (deletingId) return
+  const handleDeleteClick = (entry: CalorieEntry) => {
+    setEntryToDelete(entry)
+    setDeleteDialogOpen(true)
+  }
 
-    if (!confirm("Are you sure you want to delete this entry?")) {
-      return
-    }
+  const handleDeleteConfirm = async () => {
+    if (!entryToDelete) return
 
-    setDeletingId(id)
     try {
-      await deleteEntry.mutateAsync(id)
+      await deleteEntry.mutateAsync(entryToDelete.id)
+      toast({
+        title: "Entry deleted",
+        description: `"${entryToDelete.foodDescription || "Food entry"}" has been removed.`,
+      })
+      setDeleteDialogOpen(false)
+      setEntryToDelete(null)
     } catch (error) {
-      console.error("Failed to delete entry:", error)
-    } finally {
-      setDeletingId(null)
+      toast({
+        title: "Error",
+        description: "Failed to delete entry. Please try again.",
+        variant: "destructive",
+      })
     }
   }
 
@@ -105,8 +117,8 @@ export default function FoodsTab({ entries }: FoodsTabProps) {
                   <Pencil className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() => handleDelete(entry.id)}
-                  disabled={deletingId === entry.id}
+                  onClick={() => handleDeleteClick(entry)}
+                  disabled={deleteEntry.isPending}
                   className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded transition-colors disabled:opacity-50"
                   title="Delete"
                 >
@@ -133,6 +145,19 @@ export default function FoodsTab({ entries }: FoodsTabProps) {
         isOpen={isFormOpen}
         onClose={handleCloseForm}
         entry={editingEntry}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title="Delete Food Entry"
+        description={`Are you sure you want to delete "${entryToDelete?.foodDescription || "this entry"}"? This action cannot be undone.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        onConfirm={handleDeleteConfirm}
+        variant="destructive"
+        isLoading={deleteEntry.isPending}
       />
     </div>
   )

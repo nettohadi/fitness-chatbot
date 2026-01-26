@@ -48,14 +48,17 @@ export default function TodayPage() {
   const userName = data.user.fullName || data.user.nickname || "User"
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 py-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
+        <div className="flex justify-center w-full ">
+          <div className="flex flex-col justify-center items-center">
           <h1 className="text-xl sm:text-2xl font-bold text-foreground">
             {userName}&apos;s Today
           </h1>
           <p className="text-sm text-muted-foreground">{data.today.date}</p>
+          </div>
+          
         </div>
         <button
           onClick={() => refetch()}
@@ -92,7 +95,7 @@ export default function TodayPage() {
       </div>
 
       {/* Tab Content */}
-      <div className="pt-2">
+      <div className="pt-2 ">
         {activeTab === "overview" && <OverviewTab data={data} />}
         {activeTab === "foods" && <FoodsTab entries={data.today.calorieEntries} />}
         {activeTab === "exercises" && <ExercisesTab entries={data.today.exerciseEntries} />}

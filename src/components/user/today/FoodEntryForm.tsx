@@ -9,6 +9,7 @@ import {
   useUpdateCalorieEntry,
   useEstimateCalories,
 } from "@/lib/hooks/useTodayData"
+import { useToast } from "@/hooks/use-toast"
 
 interface FoodEntryFormProps {
   isOpen: boolean
@@ -26,6 +27,7 @@ export default function FoodEntryForm({ isOpen, onClose, entry }: FoodEntryFormP
   const addEntry = useAddCalorieEntry()
   const updateEntry = useUpdateCalorieEntry()
   const estimateCalories = useEstimateCalories()
+  const { toast } = useToast()
 
   const isEditing = !!entry
 
@@ -101,16 +103,28 @@ export default function FoodEntryForm({ isOpen, onClose, entry }: FoodEntryFormP
             calories: calorieValue,
           },
         })
+        toast({
+          title: "Entry updated",
+          description: `"${foodDescription}" has been updated.`,
+        })
       } else {
         await addEntry.mutateAsync({
           foodDescription,
           calories: calorieValue,
           estimatedByAi: isEstimatedByAi,
         })
+        toast({
+          title: "Entry added",
+          description: `"${foodDescription}" (${calorieValue} kcal) has been logged.`,
+        })
       }
       onClose()
     } catch (error) {
-      console.error("Failed to save entry:", error)
+      toast({
+        title: "Error",
+        description: isEditing ? "Failed to update entry." : "Failed to add entry.",
+        variant: "destructive",
+      })
     }
   }
 

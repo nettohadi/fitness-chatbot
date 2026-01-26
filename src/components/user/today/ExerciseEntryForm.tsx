@@ -9,6 +9,7 @@ import {
   useUpdateExerciseEntry,
   useEstimateExercise,
 } from "@/lib/hooks/useTodayData"
+import { useToast } from "@/hooks/use-toast"
 
 interface ExerciseEntryFormProps {
   isOpen: boolean
@@ -44,6 +45,7 @@ export default function ExerciseEntryForm({ isOpen, onClose, entry }: ExerciseEn
   const addEntry = useAddExerciseEntry()
   const updateEntry = useUpdateExerciseEntry()
   const estimateExercise = useEstimateExercise()
+  const { toast } = useToast()
 
   const isEditing = !!entry
 
@@ -110,6 +112,10 @@ export default function ExerciseEntryForm({ isOpen, onClose, entry }: ExerciseEn
             caloriesBurned: calories,
           },
         })
+        toast({
+          title: "Entry updated",
+          description: `"${exerciseType.trim()}" has been updated.`,
+        })
       } else {
         await addEntry.mutateAsync({
           exerciseType: exerciseType.trim(),
@@ -117,10 +123,18 @@ export default function ExerciseEntryForm({ isOpen, onClose, entry }: ExerciseEn
           caloriesBurned: calories,
           metValue: metValue || undefined,
         })
+        toast({
+          title: "Entry added",
+          description: `"${exerciseType.trim()}" (${duration} min, -${calories} kcal) has been logged.`,
+        })
       }
       onClose()
     } catch (error) {
-      console.error("Failed to save entry:", error)
+      toast({
+        title: "Error",
+        description: isEditing ? "Failed to update entry." : "Failed to add entry.",
+        variant: "destructive",
+      })
     }
   }
 
