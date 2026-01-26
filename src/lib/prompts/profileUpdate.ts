@@ -32,20 +32,28 @@ DO NOT use: name, weight, height, activity, BMR, TDEE, dailyGoal (these will cau
 - Start response with { and end with }
 - NO text before or after JSON
 - ALWAYS ask confirmation WITH explicit options: "Simpan? (Ya/Tidak)" or "Save? (Yes/No)"
-- Store pending action in hidden tag for system to extract later
+- Store pending action in hidden tag INSIDE the message field
+
+⚠️ JSON STRUCTURE - CRITICAL:
+Output format: {"message":"...<!--PENDING:...-->"}
+- "message" is at ROOT LEVEL containing both display text AND hidden PENDING tag
+- The PENDING tag goes INSIDE the message string, not as a separate field
+WRONG: 📝 Update berat...<!--PENDING:...-->  (plain text, not JSON!)
+WRONG: {"action":"update_profile","data":{...}}  (no message field!)
+CORRECT: {"message":"📝 Update berat...<!--PENDING:{...}-->"}
 
 TWO-STEP FLOW:
 Step 1 - Ask confirmation (include pending action in hidden tag):
-{\"message\":\"📝 Update berat ${user.weightKg || '?'}kg → 70kg?\\\\nGoal akan dihitung ulang.\\\\n\\\\nSimpan? (Ya/Tidak)<!--PENDING:{\\\\\"action\\\\\":\\\\\"update_profile\\\\\",\\\\\"data\\\\\":{\\\\\"weightKg\\\\\":70}}-->\"}
+{"message":"📝 Update berat ${user.weightKg || '?'}kg → 70kg?\\nGoal akan dihitung ulang.\\n\\nSimpan? (Ya/Tidak)<!--PENDING:{\\"action\\":\\"update_profile\\",\\"data\\":{\\"weightKg\\":70}}-->"}
 
-Step 2 - When user confirms (says \"ya/yes\"), the system will extract and execute the pending action.
+Step 2 - When user confirms (says "ya/yes"), the system will extract and execute the pending action.
 
 NAME UPDATE (still ask confirmation):
-{\"message\":\"👤 Update nama → Hadi?\\\\n\\\\nSimpan? (Ya/Tidak)<!--PENDING:{\\\\\"action\\\\\":\\\\\"update_profile\\\\\",\\\\\"data\\\\\":{\\\\\"nickname\\\\\":\\\\\"Hadi\\\\\"}}-->\"}
+{"message":"👤 Update nama → Hadi?\\n\\nSimpan? (Ya/Tidak)<!--PENDING:{\\"action\\":\\"update_profile\\",\\"data\\":{\\"nickname\\":\\"Hadi\\"}}-->"}
 
 MULTIPLE FIELDS:
-{\"message\":\"📝 Update profil?\\\\n- Berat: ${user.weightKg || '?'}kg → 70kg\\\\n- Tinggi: ${user.heightCm || '?'}cm → 175cm\\\\n\\\\nGoal akan dihitung ulang.\\\\nSimpan? (Ya/Tidak)<!--PENDING:{\\\\\"action\\\\\":\\\\\"update_profile\\\\\",\\\\\"data\\\\\":{\\\\\"weightKg\\\\\":70,\\\\\"heightCm\\\\\":175}}-->\"}
+{"message":"📝 Update profil?\\n- Berat: ${user.weightKg || '?'}kg → 70kg\\n- Tinggi: ${user.heightCm || '?'}cm → 175cm\\n\\nGoal akan dihitung ulang.\\nSimpan? (Ya/Tidak)<!--PENDING:{\\"action\\":\\"update_profile\\",\\"data\\":{\\"weightKg\\":70,\\"heightCm\\":175}}-->"}
 
 CLARIFY (need more info):
-{\"message\":\"Berat baru berapa kg?\"}`;
+{"message":"Berat baru berapa kg?"}`;
 }

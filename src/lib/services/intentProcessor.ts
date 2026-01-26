@@ -933,6 +933,14 @@ export async function processProfileUpdate(
     return { message: response };
   }
 
+  // If LLM returned raw text with PENDING tag (not wrapped in JSON message field),
+  // parseJSON extracts the PENDING data but loses the actual message text.
+  // In this case, use the raw response as the message.
+  if (result.action && result.data && !result.message && !result.successMessage) {
+    // The raw response contains the actual message text with PENDING tag
+    return { ...result, message: response };
+  }
+
   // If there's an action with data, check for invalid fields
   if (result.action && result.data) {
     const invalidFields = hasInvalidProfileFields(result.data);
