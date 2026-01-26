@@ -58,7 +58,7 @@ Copy the output and paste it as the `NEXTAUTH_SECRET` value in `.env`.
 
 **Example:**
 ```env
-NEXTAUTH_SECRET=Xy9kL3mN7pQ2rS4tU6vW8xY0zA1bC3dE5fG7hI9jK==
+NEXTAUTH_SECRET=<paste-your-generated-secret-here>
 ```
 
 ### Production Environment
