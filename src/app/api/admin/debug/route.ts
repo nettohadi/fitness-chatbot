@@ -200,7 +200,8 @@ export async function GET(request: NextRequest) {
         const entries = await prisma.calorieEntry.findMany({
           where: Object.keys(where).length > 0 ? where : undefined,
           orderBy: { createdAt: 'desc' },
-          take: limit,
+          // Return all entries when filtering by date, otherwise apply limit
+          ...(dateFilter ? {} : { take: limit }),
           select: {
             id: true,
             userId: true,
@@ -250,7 +251,8 @@ export async function GET(request: NextRequest) {
         const entries = await prisma.exerciseEntry.findMany({
           where: Object.keys(where).length > 0 ? where : undefined,
           orderBy: { createdAt: 'desc' },
-          take: limit,
+          // Return all entries when filtering by date, otherwise apply limit
+          ...(dateFilter ? {} : { take: limit }),
           select: {
             id: true,
             userId: true,
