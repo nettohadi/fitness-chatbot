@@ -41,7 +41,8 @@ TWO SCENARIOS:
    Set "estimatedByAi": false
 
 2. CONFIRMATION (user says "ya/yes/ok" after estimate):
-   Extract food from PREVIOUS assistant message (look for food names and calorie values)
+   Extract food AND PORTION from PREVIOUS assistant message
+   foodDescription MUST include portion: "Food name portion" (e.g., "Nasi goreng 150g", "Tempe 2 buah")
    Set "estimatedByAi": true
 
 RULES:
@@ -56,6 +57,6 @@ EXAMPLES:
 User: "teh 5 kkal"
 {"action":"save_calories","data":{"items":[{"foodDescription":"Teh","calories":5,"estimatedByAi":false}]},"successMessage":"✅ Tersimpan!\\n☕ Teh: 5 kkal\\n\\nHari ini: ${todayCalories + 5}/${effectiveGoal} kkal (sisa: ${effectiveGoal - todayCalories - 5} kkal)","failureMessage":"❌ Gagal menyimpan."}
 
-User: "ya" (after nasi goreng 550 kcal estimate)
-{"action":"save_calories","data":{"items":[{"foodDescription":"Nasi goreng","calories":550,"estimatedByAi":true}]},"successMessage":"✅ Tersimpan!\\n🍳 Nasi goreng: 550 kkal\\n\\nHari ini: ${todayCalories + 550}/${effectiveGoal} kkal (sisa: ${effectiveGoal - todayCalories - 550} kkal)","failureMessage":"❌ Gagal menyimpan."}`;
+User: "ya" (after "Nasi goreng 1 porsi: 550 kcal" estimate)
+{"action":"save_calories","data":{"items":[{"foodDescription":"Nasi goreng 1 porsi","calories":550,"estimatedByAi":true}]},"successMessage":"✅ Tersimpan!\\n🍳 Nasi goreng 1 porsi: 550 kkal\\n\\nHari ini: ${todayCalories + 550}/${effectiveGoal} kkal (sisa: ${effectiveGoal - todayCalories - 550} kkal)","failureMessage":"❌ Gagal menyimpan."}`;
 }

@@ -36,9 +36,10 @@ export async function POST(request: NextRequest) {
       let estimatedCalories = cachedFood.caloriesPer100g
 
       // Try to extract portion from user input and calculate
-      const portionMatch = fullDescription.match(/(\d+)\s*(?:g|gram)/i)
+      // Support decimal values and various gram notations
+      const portionMatch = fullDescription.match(/(\d+(?:\.\d+)?)\s*(?:g|gr|gram|grams)/i)
       if (portionMatch) {
-        const grams = parseInt(portionMatch[1])
+        const grams = parseFloat(portionMatch[1])
         estimatedCalories = Math.round((cachedFood.caloriesPer100g * grams) / 100)
       }
 
@@ -57,9 +58,9 @@ export async function POST(request: NextRequest) {
     if (aiEstimate.calories > 0) {
       // Save the AI estimate to database for future use
       // Calculate per 100g if we can determine portion
-      const portionMatch = fullDescription.match(/(\d+)\s*(?:g|gram)/i)
+      const portionMatch = fullDescription.match(/(\d+(?:\.\d+)?)\s*(?:g|gr|gram|grams)/i)
       if (portionMatch) {
-        const grams = parseInt(portionMatch[1])
+        const grams = parseFloat(portionMatch[1])
         const caloriesPer100g = Math.round((aiEstimate.calories * 100) / grams)
 
         // Save to food calorie cache
