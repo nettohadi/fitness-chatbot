@@ -7,6 +7,14 @@ import { LANG_RULES, buildUserContext } from './shared';
 import type { PromptUser, SummaryData } from './types';
 
 /**
+ * Format number to max 1 decimal place
+ */
+function formatNum(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1);
+}
+
+/**
  * Format daily breakdown for week/month summaries
  * Uses English day names - LLM will translate to user's language
  * Format: Mon 20: 🍽️1600 🏃200 📉100
@@ -17,7 +25,7 @@ function formatDailyBreakdown(breakdown: SummaryData['dailyBreakdown']): string 
   return breakdown.map(day => {
     const shortDay = day.dayName.substring(0, 3); // Mon, Tue, Wed, etc.
     const dayNum = day.date.split('-')[2]; // Get day number from YYYY-MM-DD
-    return `${shortDay} ${dayNum}: 🍽️${day.consumed} 🏃${day.burned} 📉${day.deficit}`;
+    return `${shortDay} ${dayNum}: 🍽️${formatNum(day.consumed)} 🏃${formatNum(day.burned)} 📉${formatNum(day.deficit)}`;
   }).join('\n');
 }
 
@@ -49,8 +57,8 @@ DATA:
 - Number of days: ${numDays}
 - Daily breakdown:
 ${formatDailyBreakdown(data.dailyBreakdown)}
-- Total: food=${data.caloriesConsumed}, exercise=${data.caloriesBurned}, deficit=${totalDeficit}
-- Daily target: ${data.dailyGoal}
+- Total: food=${formatNum(data.caloriesConsumed)}, exercise=${formatNum(data.caloriesBurned)}, deficit=${formatNum(totalDeficit)}
+- Daily target: ${formatNum(data.dailyGoal)}
 
 OUTPUT FORMAT:
 📊 [This Week/This Month in user's language] ([N] [days in user's language])
@@ -86,12 +94,12 @@ RULES:
 
   // Format food entries compactly
   const foodList = data.foodEntries?.length
-    ? data.foodEntries.map(e => `• ${e.food} (${e.calories})`).join('\n')
+    ? data.foodEntries.map(e => `• ${e.food} (${formatNum(e.calories)})`).join('\n')
     : '(none)';
 
   // Format exercise entries compactly
   const exerciseList = data.exerciseEntries?.length
-    ? data.exerciseEntries.map(e => `• ${e.type} ${e.duration}m (${e.calories})`).join('\n')
+    ? data.exerciseEntries.map(e => `• ${e.type} ${e.duration}m (${formatNum(e.calories)})`).join('\n')
     : '(none)';
 
   return `Generate fitness summary. Output PLAIN TEXT only (no JSON, no markdown).
@@ -102,11 +110,11 @@ CRITICAL: Use ONLY the data below. Translate ALL text to user's language.
 
 DATA:
 - Period type: ${periodType}${specificDate ? ` (${specificDate})` : ''}
-- Food total: ${data.caloriesConsumed}
-- Exercise total: ${data.caloriesBurned}
-- Deficit: ${deficit} (PRE-CALCULATED - use this exact value!)
-- Remaining: ${remaining} (PRE-CALCULATED - use this exact value!)
-- Daily target: ${data.dailyGoal}
+- Food total: ${formatNum(data.caloriesConsumed)}
+- Exercise total: ${formatNum(data.caloriesBurned)}
+- Deficit: ${formatNum(deficit)} (PRE-CALCULATED - use this exact value!)
+- Remaining: ${formatNum(remaining)} (PRE-CALCULATED - use this exact value!)
+- Daily target: ${formatNum(data.dailyGoal)}
 
 FOOD LIST:
 ${foodList}
@@ -117,14 +125,14 @@ ${exerciseList}
 OUTPUT FORMAT:
 📊 [Period in user's language]
 
-🍽️ [Food]: ${data.caloriesConsumed}
+🍽️ [Food]: ${formatNum(data.caloriesConsumed)}
 [food list]
 
-🏃 [Exercise]: ${data.caloriesBurned}
+🏃 [Exercise]: ${formatNum(data.caloriesBurned)}
 [exercise list]
 
-📉 [Deficit]: ${deficit} | ✅ [Remaining]: ${remaining}
-🎯 Target: ${data.dailyGoal}/[day]
+📉 [Deficit]: ${formatNum(deficit)} | ✅ [Remaining]: ${formatNum(remaining)}
+🎯 Target: ${formatNum(data.dailyGoal)}/[day]
 
 RULES:
 - "today" → "Hari Ini" (ID) / "Today" (EN)
