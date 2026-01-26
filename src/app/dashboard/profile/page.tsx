@@ -365,7 +365,7 @@ export default function ProfilePage() {
                 <div className="p-4 flex flex-col items-center">
                   <p className="text-sm text-muted-foreground">Daily Calorie Goal</p>
                   <p className="text-2xl font-bold text-primary">
-                    {Math.round(Number(profile.dailyCalorieGoal) - Number(profile.deficitTarget))} cal
+                    {Math.round(Number(profile.dailyCalorieGoal))} cal
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     TDEE ({Math.round(Number(profile.tdee || 0))}) - Deficit ({Math.round(Number(profile.deficitTarget || 0))})
