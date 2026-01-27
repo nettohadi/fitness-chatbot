@@ -2,12 +2,8 @@
 
 import { useUserTodayStatus } from "@/lib/hooks/useAdminData"
 import { Loader2, RefreshCw } from "lucide-react"
-
-// Format number to max 1 decimal place
-function formatCalories(value: number): string {
-  const rounded = Math.round(value * 10) / 10
-  return Number.isInteger(rounded) ? rounded.toString() : rounded.toFixed(1)
-}
+import CircularProgress from "@/components/ui/CircularProgress"
+import StatBox from "@/components/ui/StatBox"
 
 interface TodayStatusPanelProps {
   userId: string
@@ -40,14 +36,9 @@ export default function TodayStatusPanel({ userId }: TodayStatusPanelProps) {
   const dailyGoal = user.dailyCalorieGoal || 0
   const consumed = today.totalCaloriesConsumed
   const burned = today.totalCaloriesBurned
-  const remaining = dailyGoal - consumed + burned
-  const totalQuote = dailyGoal + burned
-  const percentage = dailyGoal > 0 ? Math.min((consumed / totalQuote) * 100, 100) : 0
-
-  // SVG Pie chart calculations
-  const radius = 80
-  const circumference = 2 * Math.PI * radius
-  const strokeDashoffset = circumference - (percentage / 100) * circumference
+  const todayGoal = dailyGoal + burned
+  const remaining = todayGoal - consumed
+  const percentage = todayGoal > 0 ? Math.min((consumed / todayGoal) * 100, 100) : 0
 
   const handleRefresh = () => {
     refetch()
@@ -78,64 +69,23 @@ export default function TodayStatusPanel({ userId }: TodayStatusPanelProps) {
 
       {/* Pie Chart */}
       <div className="flex justify-center">
-        <div className="relative">
-          <svg width="200" height="200" className="transform -rotate-90">
-            {/* Background circle */}
-            <circle
-              cx="100"
-              cy="100"
-              r={radius}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="16"
-              className="text-secondary"
-            />
-            {/* Progress circle */}
-            <circle
-              cx="100"
-              cy="100"
-              r={radius}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="16"
-              strokeDasharray={circumference}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-              className={percentage >= 100 ? "text-red-500" : "text-primary"}
-            />
-          </svg>
-          {/* Center text */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-3xl font-bold text-foreground">{Math.round(percentage)}%</span>
-            <span className="text-sm text-muted-foreground">of goal</span>
-          </div>
-        </div>
+        <CircularProgress percentage={percentage} />
       </div>
 
       {/* Calorie Summary */}
-      <div className="grid grid-cols-2 gap-4 text-center">
-        <div className="bg-secondary/30 rounded-lg p-3">
-          <div className="text-2xl font-bold text-foreground">{formatCalories(consumed)}</div>
-          <div className="text-xs text-muted-foreground">Consumed</div>
-        </div>
-        <div className="bg-secondary/30 rounded-lg p-3">
-          <div className="text-2xl font-bold text-green-400">{formatCalories(burned)}</div>
-          <div className="text-xs text-muted-foreground">Burned</div>
-        </div>
-        <div className="bg-secondary/30 rounded-lg p-3">
-          <div className="text-2xl font-bold text-foreground">{formatCalories(dailyGoal)}</div>
-          <div className="text-xs text-muted-foreground">Daily Goal</div>
-        </div>
-        <div className="bg-secondary/30 rounded-lg p-3">
-          <div className={`text-2xl font-bold ${remaining < 0 ? "text-red-400" : "text-blue-400"}`}>
-            {formatCalories(remaining)}
-          </div>
-          <div className="text-xs text-muted-foreground">Remaining</div>
-        </div>
+      <div className="grid grid-cols-2 gap-4">
+        <StatBox value={consumed} label="Consumed" />
+        <StatBox value={burned} label="Burned" variant="success" />
+        <StatBox value={todayGoal} label="Today's Goal" />
+        <StatBox
+          value={remaining}
+          label="Remaining"
+          variant={remaining < 0 ? "warning" : "info"}
+        />
       </div>
 
       {/* User Stats */}
-      <div className="bg-secondary/30 rounded-lg p-4">
+      <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
         <h4 className="text-sm font-medium text-foreground mb-3">User Stats</h4>
         <dl className="grid grid-cols-2 gap-2 text-sm">
           <div>

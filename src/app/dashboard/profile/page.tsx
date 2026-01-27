@@ -331,7 +331,7 @@ export default function ProfilePage() {
 
         {/* Calculated Metrics (Read-only) */}
         {(profile?.bmr || profile?.tdee || profile?.dailyCalorieGoal) && (
-          <div className="bg-card border border-border rounded-lg p-6 space-y-4">
+          <div className="bg-card border border-border rounded-lg p-6 space-y-4 pb-20">
             <div className="flex items-center gap-2 mb-4">
               <Ruler className="h-5 w-5 text-primary" />
               <h2 className="text-lg font-semibold text-foreground">Calculated Metrics</h2>
@@ -342,19 +342,19 @@ export default function ProfilePage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               {profile?.bmr && (
-                <div className="p-4 bg-secondary/30 rounded-lg flex flex-col items-center">
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg flex flex-col items-center">
                   <p className="text-sm text-muted-foreground">BMR</p>
                   <p className="text-xl font-bold text-foreground">
-                    {Math.round(Number(profile.bmr))} cal
+                    {Math.round(Number(profile.bmr))} kcal
                   </p>
                   <p className="text-xs text-muted-foreground">Basal Metabolic Rate</p>
                 </div>
               )}
               {profile?.tdee && (
-                <div className="p-4 bg-secondary/30 rounded-lg flex flex-col items-center">
+                <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg flex flex-col items-center">
                   <p className="text-sm text-muted-foreground">TDEE</p>
                   <p className="text-xl font-bold text-foreground">
-                    {Math.round(Number(profile.tdee))} cal
+                    {Math.round(Number(profile.tdee))} kcal
                   </p>
                   <p className="text-xs text-muted-foreground">Total Daily Energy Expenditure</p>
                 </div>
@@ -362,11 +362,11 @@ export default function ProfilePage() {
             </div>
 
             {profile?.dailyCalorieGoal && (
-              <div className="flex flex-row justify-center bg-primary/10 rounded-lg border border-primary/20 mb-6">
+              <div className="flex flex-row justify-center bg-primary/5 rounded-lg border border-primary/20 mb-6">
                 <div className="p-4 flex flex-col items-center">
                   <p className="text-sm text-muted-foreground">Daily Calorie Goal</p>
                   <p className="text-2xl font-bold text-primary">
-                    {Math.round(Number(profile.dailyCalorieGoal))} cal
+                    {Math.round(Number(profile.dailyCalorieGoal))} kcal
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     TDEE ({Math.round(Number(profile.tdee || 0))}) - Deficit ({Math.round(Number(profile.deficitTarget || 0))})

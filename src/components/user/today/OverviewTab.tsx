@@ -1,8 +1,8 @@
 "use client"
 
 import { TodayData } from "@/lib/hooks/useTodayData"
-import CircularProgress from "./CircularProgress"
-import StatBox from "./StatBox"
+import CircularProgress from "@/components/ui/CircularProgress"
+import StatBox from "@/components/ui/StatBox"
 
 interface OverviewTabProps {
   data: TodayData
@@ -10,13 +10,13 @@ interface OverviewTabProps {
 
 export default function OverviewTab({ data }: OverviewTabProps) {
   const { user, today } = data
-  const baseGoal = user.dailyCalorieGoal || 0
+  const dailyGoal = user.dailyCalorieGoal || 0
   const consumed = today.totalCaloriesConsumed
   const burned = today.totalCaloriesBurned
   // Daily goal = TDEE - deficit target + calories burned
-  const dailyGoal = baseGoal + burned
-  const remaining = dailyGoal - consumed
-  const percentage = dailyGoal > 0 ? (consumed / dailyGoal) * 100 : 0
+  const todayGoal = dailyGoal + burned
+  const remaining = todayGoal - consumed
+  const percentage = todayGoal > 0 ? (consumed / todayGoal) * 100 : 0
 
   return (
     <div className="space-y-6">
@@ -29,7 +29,7 @@ export default function OverviewTab({ data }: OverviewTabProps) {
       <div className="grid grid-cols-2 gap-3">
         <StatBox value={consumed} label="Consumed" />
         <StatBox value={burned} label="Burned" variant="success" />
-        <StatBox value={dailyGoal} label="Daily Goal" />
+        <StatBox value={todayGoal} label="Today's Goal" />
         <StatBox
           value={remaining}
           label="Remaining"
@@ -38,7 +38,7 @@ export default function OverviewTab({ data }: OverviewTabProps) {
       </div>
 
       {/* User Stats */}
-      <div className="bg-secondary/30 rounded-lg p-4">
+      <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
         <h4 className="text-sm font-medium text-foreground mb-3">Your Stats</h4>
         <dl className="grid grid-cols-2 gap-2 text-sm">
           <div>
@@ -70,13 +70,13 @@ export default function OverviewTab({ data }: OverviewTabProps) {
 
       {/* Quick Summary */}
       <div className="grid grid-cols-2 gap-3 text-sm">
-        <div className="bg-secondary/30 rounded-lg p-3">
+        <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
           <div className="text-muted-foreground">Food Entries</div>
           <div className="text-lg font-semibold text-foreground">
             {today.calorieEntries.length}
           </div>
         </div>
-        <div className="bg-secondary/30 rounded-lg p-3">
+        <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
           <div className="text-muted-foreground">Exercise Entries</div>
           <div className="text-lg font-semibold text-foreground">
             {today.exerciseEntries.length}

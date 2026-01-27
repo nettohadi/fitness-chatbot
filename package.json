@@ -9,6 +9,7 @@
     "build": "prisma generate && next build",
     "start": "next start -p 7777",
     "lint": "next lint",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json}\"",
     "vercel-build": "prisma generate && prisma db push && next build",
     "db:start": "brew services start postgresql@14 || brew services start postgresql@16 || echo 'PostgreSQL already running or not installed via Homebrew'",
     "db:stop": "brew services stop postgresql@14 || brew services stop postgresql@16",
@@ -65,7 +66,9 @@
     "dotenv": "^17.2.3",
     "eslint": "^8",
     "eslint-config-next": "15.1.2",
+    "eslint-config-prettier": "^10.1.8",
     "postcss": "^8",
+    "prettier": "^3.8.1",
     "tailwindcss": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5"
