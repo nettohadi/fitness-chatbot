@@ -33,11 +33,7 @@ export default function StatBox({
 
   return (
     <div
-      className={cn(
-        "bg-primary/5 border border-primary/20",
-        "rounded-lg p-3 text-center",
-        className
-      )}
+      className={cn("bg-primary/5 border border-border", "rounded-lg p-3 text-center", className)}
     >
       <div
         className={cn("text-2xl font-bold flex justify-center items-center gap-2", valueColorClass)}

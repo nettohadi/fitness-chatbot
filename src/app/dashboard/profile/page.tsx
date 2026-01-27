@@ -26,10 +26,19 @@ const profileSchema = z.object({
   nickname: z.string().optional(),
   age: z.coerce.number().min(1, "Age is required").max(120, "Age must be less than 120"),
   gender: z.string().min(1, "Gender is required"),
-  weightKg: z.coerce.number().min(20, "Weight must be at least 20kg").max(300, "Weight must be less than 300kg"),
-  heightCm: z.coerce.number().min(100, "Height must be at least 100cm").max(250, "Height must be less than 250cm"),
+  weightKg: z.coerce
+    .number()
+    .min(20, "Weight must be at least 20kg")
+    .max(300, "Weight must be less than 300kg"),
+  heightCm: z.coerce
+    .number()
+    .min(100, "Height must be at least 100cm")
+    .max(250, "Height must be less than 250cm"),
   activityLevel: z.string().min(1, "Activity level is required"),
-  deficitTarget: z.coerce.number().min(0, "Deficit must be at least 0").max(1500, "Deficit must be less than 1500"),
+  deficitTarget: z.coerce
+    .number()
+    .min(0, "Deficit must be at least 0")
+    .max(1500, "Deficit must be less than 1500"),
 })
 
 type ProfileFormData = z.infer<typeof profileSchema>
@@ -139,9 +148,7 @@ export default function ProfilePage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Full Name
-              </label>
+              <label className="block text-sm font-medium text-foreground mb-1">Full Name</label>
               <input
                 type="text"
                 {...register("fullName")}
@@ -151,9 +158,7 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Nickname
-              </label>
+              <label className="block text-sm font-medium text-foreground mb-1">Nickname</label>
               <input
                 type="text"
                 {...register("nickname")}
@@ -178,9 +183,7 @@ export default function ProfilePage() {
                 }`}
                 placeholder="25"
               />
-              {errors.age && (
-                <p className="text-xs text-destructive mt-1">{errors.age.message}</p>
-              )}
+              {errors.age && <p className="text-xs text-destructive mt-1">{errors.age.message}</p>}
             </div>
 
             <div>
@@ -274,8 +277,8 @@ export default function ProfilePage() {
                   activityLevel === level.value
                     ? "border-primary bg-primary/5"
                     : errors.activityLevel
-                    ? "border-destructive hover:bg-secondary/50"
-                    : "border-border hover:bg-secondary/50"
+                      ? "border-destructive hover:bg-secondary/50"
+                      : "border-border hover:bg-secondary/50"
                 }`}
               >
                 <input
@@ -286,9 +289,7 @@ export default function ProfilePage() {
                 />
                 <div>
                   <span className="font-medium text-foreground">{level.label}</span>
-                  <span className="text-sm text-muted-foreground ml-2">
-                    - {level.description}
-                  </span>
+                  <span className="text-sm text-muted-foreground ml-2">- {level.description}</span>
                 </div>
               </label>
             ))}
@@ -342,7 +343,7 @@ export default function ProfilePage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               {profile?.bmr && (
-                <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg flex flex-col items-center">
+                <div className="p-4 bg-primary/5 border border-border rounded-lg flex flex-col items-center">
                   <p className="text-sm text-muted-foreground">BMR</p>
                   <p className="text-xl font-bold text-foreground">
                     {Math.round(Number(profile.bmr))} kcal
@@ -351,7 +352,7 @@ export default function ProfilePage() {
                 </div>
               )}
               {profile?.tdee && (
-                <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg flex flex-col items-center">
+                <div className="p-4 bg-primary/5 border border-border rounded-lg flex flex-col items-center">
                   <p className="text-sm text-muted-foreground">TDEE</p>
                   <p className="text-xl font-bold text-foreground">
                     {Math.round(Number(profile.tdee))} kcal
@@ -362,14 +363,15 @@ export default function ProfilePage() {
             </div>
 
             {profile?.dailyCalorieGoal && (
-              <div className="flex flex-row justify-center bg-primary/5 rounded-lg border border-primary/20 mb-6">
+              <div className="flex flex-row justify-center bg-primary/5 rounded-lg border border-border mb-6">
                 <div className="p-4 flex flex-col items-center">
                   <p className="text-sm text-muted-foreground">Daily Calorie Goal</p>
                   <p className="text-2xl font-bold text-primary">
                     {Math.round(Number(profile.dailyCalorieGoal))} kcal
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    TDEE ({Math.round(Number(profile.tdee || 0))}) - Deficit ({Math.round(Number(profile.deficitTarget || 0))})
+                    TDEE ({Math.round(Number(profile.tdee || 0))}) - Deficit (
+                    {Math.round(Number(profile.deficitTarget || 0))})
                   </p>
                 </div>
               </div>

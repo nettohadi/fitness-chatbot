@@ -30,15 +30,11 @@ export default function OverviewTab({ data }: OverviewTabProps) {
         <StatBox value={consumed} label="Consumed" />
         <StatBox value={burned} label="Burned" variant="success" />
         <StatBox value={todayGoal} label="Today's Goal" />
-        <StatBox
-          value={remaining}
-          label="Remaining"
-          variant={remaining < 0 ? "warning" : "info"}
-        />
+        <StatBox value={remaining} label="Remaining" variant={remaining < 0 ? "warning" : "info"} />
       </div>
 
       {/* User Stats */}
-      <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+      <div className="bg-primary/5 border border-border rounded-lg p-4">
         <h4 className="text-sm font-medium text-foreground mb-3">Your Stats</h4>
         <dl className="grid grid-cols-2 gap-2 text-sm">
           <div>
@@ -70,13 +66,11 @@ export default function OverviewTab({ data }: OverviewTabProps) {
 
       {/* Quick Summary */}
       <div className="grid grid-cols-2 gap-3 text-sm">
-        <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+        <div className="bg-primary/5 border border-border rounded-lg p-3">
           <div className="text-muted-foreground">Food Entries</div>
-          <div className="text-lg font-semibold text-foreground">
-            {today.calorieEntries.length}
-          </div>
+          <div className="text-lg font-semibold text-foreground">{today.calorieEntries.length}</div>
         </div>
-        <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+        <div className="bg-primary/5 border border-border rounded-lg p-3">
           <div className="text-muted-foreground">Exercise Entries</div>
           <div className="text-lg font-semibold text-foreground">
             {today.exerciseEntries.length}

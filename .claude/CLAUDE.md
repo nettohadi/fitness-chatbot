@@ -4,12 +4,39 @@
 
 When debugging bot issues, use the Debug API to fetch logs from production.
 
+### Quick Start (Recommended)
+
+Use the helper script that auto-loads env vars:
+
+```bash
+# Source the script to get helper functions
+source scripts/debug-api.sh
+
+# Then use these commands:
+debug_logs 5          # Recent API logs
+debug_messages 10     # Recent messages
+debug_calories 10     # Calorie entries
+debug_exercises 10    # Exercise entries
+debug_users 10        # User profiles
+debug_full_log <id>   # Full log by ID
+debug_by_phone <phone> [type] [limit]  # Filter by phone
+debug_by_date <YYYY-MM-DD> [type] [limit]  # Filter by date
+debug_help            # Show all commands
+```
+
+Or run directly:
+```bash
+./scripts/debug-api.sh logs 5
+./scripts/debug-api.sh messages 10
+./scripts/debug-api.sh help
+```
+
 ### Environment Variables
-Get these values from your `.env` file:
+Add these to your `.env` file:
 - `DEBUG_API_TOKEN` - Authorization token for debug API
 - `VERCEL_DOMAIN` - Production domain (e.g., https://fitness-chatbot-rosy.vercel.app/)
 
-### Common Commands
+### Manual Commands (Alternative)
 
 ```bash
 # Recent API logs (last 5)

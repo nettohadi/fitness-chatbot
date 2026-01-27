@@ -62,7 +62,9 @@ export default function TodayStatusPanel({ userId }: TodayStatusPanelProps) {
             className="p-2 rounded-lg hover:bg-secondary/50 transition-colors disabled:opacity-50"
             title="Refresh data"
           >
-            <RefreshCw className={`h-5 w-5 text-muted-foreground ${isFetching ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`h-5 w-5 text-muted-foreground ${isFetching ? "animate-spin" : ""}`}
+            />
           </button>
         </div>
       </div>
@@ -77,15 +79,11 @@ export default function TodayStatusPanel({ userId }: TodayStatusPanelProps) {
         <StatBox value={consumed} label="Consumed" />
         <StatBox value={burned} label="Burned" variant="success" />
         <StatBox value={todayGoal} label="Today's Goal" />
-        <StatBox
-          value={remaining}
-          label="Remaining"
-          variant={remaining < 0 ? "warning" : "info"}
-        />
+        <StatBox value={remaining} label="Remaining" variant={remaining < 0 ? "warning" : "info"} />
       </div>
 
       {/* User Stats */}
-      <div className="bg-primary/5 border border-primary/20 rounded-lg p-4">
+      <div className="bg-primary/5 border border-border rounded-lg p-4">
         <h4 className="text-sm font-medium text-foreground mb-3">User Stats</h4>
         <dl className="grid grid-cols-2 gap-2 text-sm">
           <div>
@@ -160,7 +158,8 @@ export default function TodayStatusPanel({ userId }: TodayStatusPanelProps) {
                     <div>
                       <p className="text-sm text-foreground capitalize">{entry.exerciseType}</p>
                       <p className="text-xs text-muted-foreground">
-                        {entry.durationMinutes} min • {new Date(entry.entryTime).toLocaleTimeString()}
+                        {entry.durationMinutes} min •{" "}
+                        {new Date(entry.entryTime).toLocaleTimeString()}
                       </p>
                     </div>
                     <span className="text-sm font-medium text-green-400">
