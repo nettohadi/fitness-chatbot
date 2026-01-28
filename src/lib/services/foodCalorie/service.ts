@@ -31,16 +31,32 @@ export function normalizeFoodName(name: string): string {
 }
 
 /**
+ * Extract words from food name for word-based matching
+ */
+function extractWords(name: string): string[] {
+  return name
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => word.length > 1); // Ignore single chars
+}
+
+/**
  * Find similar food in database using pg_trgm fuzzy matching
  * Returns the best match if similarity > threshold
+ *
+ * Matching priority:
+ * 1. Exact normalized match (e.g., "kering kentang" = "keringkentang")
+ * 2. Word-based match (all query words must be in the food name)
+ * 3. High-confidence fuzzy match (similarity > 0.6)
  */
 export async function findSimilarFood(
   foodName: string,
-  similarityThreshold: number = 0.3
+  similarityThreshold: number = 0.6 // Increased from 0.3 for stricter matching
 ): Promise<FoodCalorieResult | null> {
   const normalized = normalizeFoodName(foodName);
+  const queryWords = extractWords(foodName);
 
-  // First try exact match on normalized name (fastest)
+  // 1. First try exact match on normalized name (fastest)
   const exactMatch = await prisma.foodCalorie.findUnique({
     where: { nameNormalized: normalized },
   });
@@ -62,7 +78,60 @@ export async function findSimilarFood(
     };
   }
 
-  // Try fuzzy match using pg_trgm
+  // 2. Try word-based match - all query words must be present in the food name
+  if (queryWords.length > 0) {
+    try {
+      // Build a query that checks if all words are present (case-insensitive)
+      const wordConditions = queryWords.map((word) => `LOWER(name) LIKE '%${word}%'`).join(' AND ');
+
+      const wordMatches = await prisma.$queryRawUnsafe<
+        Array<{
+          id: string;
+          name: string;
+          calories_per_100g: number;
+          source: string;
+        }>
+      >(`
+        SELECT id, name, calories_per_100g, source
+        FROM food_calories
+        WHERE ${wordConditions}
+        ORDER BY usage_count DESC, LENGTH(name) ASC
+        LIMIT 1
+      `);
+
+      if (wordMatches.length > 0) {
+        const match = wordMatches[0];
+        // Verify it's a good match by checking word overlap
+        const matchWords = extractWords(match.name);
+        const commonWords = queryWords.filter((w) => matchWords.some((mw) => mw.includes(w) || w.includes(mw)));
+        const overlapRatio = commonWords.length / Math.max(queryWords.length, matchWords.length);
+
+        // Only accept if significant word overlap (>= 50%)
+        if (overlapRatio >= 0.5) {
+          console.log(
+            `[FoodCalorie] Word match: "${foodName}" -> "${match.name}" (overlap: ${(overlapRatio * 100).toFixed(0)}%)`
+          );
+
+          await prisma.foodCalorie.update({
+            where: { id: match.id },
+            data: { usageCount: { increment: 1 } },
+          }).catch(() => {});
+
+          return {
+            id: match.id,
+            name: match.name,
+            caloriesPer100g: match.calories_per_100g,
+            source: match.source,
+            similarity: overlapRatio,
+          };
+        }
+      }
+    } catch (error) {
+      console.error('[FoodCalorie] Word-based search failed:', error);
+    }
+  }
+
+  // 3. Try fuzzy match using pg_trgm with higher threshold
   try {
     const results = await prisma.$queryRaw<
       Array<{

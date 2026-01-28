@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { calories, foodDescription } = body
+    const { calories, foodDescription, estimatedByAi } = body
 
     if (typeof calories !== "number" || calories <= 0) {
       return NextResponse.json(
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       session.user.id,
       calories,
       foodDescription || null,
-      false, // not estimated by AI when entered manually
+      estimatedByAi === true, // Only true if explicitly set to true
       userTimezone
     )
 

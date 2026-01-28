@@ -1,8 +1,35 @@
 "use client"
 
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from "@tanstack/react-query"
 import { ThemeProvider } from "next-themes"
 import { useState } from "react"
+import { signOut } from "next-auth/react"
+
+/**
+ * Auth-related error messages that should trigger a redirect to login
+ */
+const AUTH_ERROR_MESSAGES = ["User not found", "Unauthorized", "Session expired"]
+
+/**
+ * Check if an error indicates an auth problem
+ */
+function isAuthError(error: unknown): boolean {
+  if (error instanceof Error) {
+    return AUTH_ERROR_MESSAGES.some((msg) =>
+      error.message.toLowerCase().includes(msg.toLowerCase())
+    )
+  }
+  return false
+}
+
+/**
+ * Global error handler for auth errors - redirects to login
+ */
+function handleGlobalError(error: unknown) {
+  if (isAuthError(error)) {
+    signOut({ callbackUrl: "/login" })
+  }
+}
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -14,6 +41,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             refetchOnWindowFocus: true,
           },
         },
+        queryCache: new QueryCache({
+          onError: handleGlobalError,
+        }),
+        mutationCache: new MutationCache({
+          onError: handleGlobalError,
+        }),
       })
   )
 

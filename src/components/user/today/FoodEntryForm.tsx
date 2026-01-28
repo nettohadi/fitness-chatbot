@@ -226,6 +226,16 @@ export default function FoodEntryForm({ isOpen, onClose, entry }: FoodEntryFormP
       return
     }
 
+    // Check if portion is provided
+    const hasPortion =
+      (portionMode === "structured" && portionValue && portionUnit) ||
+      (portionMode === "text" && portionText.trim())
+
+    if (!hasPortion) {
+      setEstimateError("Please enter a portion to estimate calories")
+      return
+    }
+
     // Build portion string for API based on mode
     let portion: string | undefined
     if (portionMode === "structured" && portionValue && portionUnit) {
@@ -299,6 +309,11 @@ export default function FoodEntryForm({ isOpen, onClose, entry }: FoodEntryFormP
 
   const isLoading = addEntry.isPending || updateEntry.isPending
   const isEstimating = estimateCalories.isPending
+
+  // Check if portion is provided (needed for AI estimate)
+  const hasValidPortion =
+    (portionMode === "structured" && portionValue && portionUnit) ||
+    (portionMode === "text" && portionText.trim())
 
   return (
     <Modal
@@ -403,9 +418,9 @@ export default function FoodEntryForm({ isOpen, onClose, entry }: FoodEntryFormP
             <button
               type="button"
               onClick={handleEstimate}
-              disabled={isEstimating || isLoading || !foodName.trim()}
+              disabled={isEstimating || isLoading || !foodName.trim() || !hasValidPortion}
               className="px-3 py-2 bg-secondary hover:bg-secondary/80 text-foreground rounded-lg flex items-center gap-1 text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              title="Estimate calories with AI"
+              title={hasValidPortion ? "Estimate calories with AI" : "Enter portion to estimate"}
             >
               {isEstimating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
