@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
 /**
  * Test endpoint to simulate Telegram webhook calls
+ * DISABLED in production for security
  *
  * Usage:
  * POST /api/test
  * Body: { "chatId": 123456789, "message": "450 calories" }
  */
 export async function POST(request: NextRequest) {
+  // Block in production
+  if (IS_PRODUCTION) {
+    return NextResponse.json(
+      { error: 'Test endpoint is disabled in production' },
+      { status: 403 }
+    );
+  }
+
   try {
     const { chatId, message } = await request.json();
 
@@ -77,6 +88,14 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
+  // Block in production
+  if (IS_PRODUCTION) {
+    return NextResponse.json(
+      { error: 'Test endpoint is disabled in production' },
+      { status: 403 }
+    );
+  }
+
   return NextResponse.json({
     message: 'Test endpoint for simulating Telegram webhook calls',
     usage: {

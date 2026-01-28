@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { createOtpSession } from "@/lib/utils/otp"
 import { sendTelegramMessage } from "@/lib/telegram"
+import { rateLimiters, getRateLimitHeaders } from "@/lib/security/rateLimit"
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +12,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Phone number is required" },
         { status: 400 }
+      )
+    }
+
+    // Rate limit OTP requests per phone number
+    const rateLimit = rateLimiters.otp(phoneNumber)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Too many OTP requests. Please try again later." },
+        { status: 429, headers: getRateLimitHeaders(rateLimit) }
       )
     }
 

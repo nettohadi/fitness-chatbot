@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendTelegramMessage, sendTelegramMessages, sendChatAction, formatForMarkdownV2 } from '@/lib/telegram';
+import { rateLimiters, getRateLimitHeaders } from '@/lib/security/rateLimit';
 import { findOrCreateUser, updateFitnessProfile, updateUserProfile } from '@/lib/db/users';
 import { inferTimezoneFromLanguage, getUserTimezone } from '@/lib/utils/timezone';
 import {
@@ -54,6 +55,9 @@ import type { SummaryData } from '@/lib/prompts';
 
 // Feature flag for new intent-based routing
 const USE_INTENT_ROUTING = process.env.USE_INTENT_ROUTING === 'true';
+
+// Telegram webhook secret for verification (set when registering webhook)
+const TELEGRAM_WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 
 /**
  * Extract pending action from conversation history
@@ -688,6 +692,15 @@ function cleanResponseForUser(response: string): string {
 
 export async function POST(request: NextRequest) {
   try {
+    // Verify Telegram webhook secret (if configured)
+    if (TELEGRAM_WEBHOOK_SECRET) {
+      const secretHeader = request.headers.get('X-Telegram-Bot-Api-Secret-Token');
+      if (secretHeader !== TELEGRAM_WEBHOOK_SECRET) {
+        console.warn('[WEBHOOK] Invalid or missing secret token');
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
+
     // Parse the JSON data from Telegram
     const update: TelegramUpdate = await request.json();
 
@@ -697,6 +710,16 @@ export async function POST(request: NextRequest) {
     }
 
     const chatId = update.message.chat.id;
+
+    // Rate limiting per chat ID (prevent spam)
+    const rateLimit = rateLimiters.webhook(chatId.toString());
+    if (!rateLimit.allowed) {
+      console.warn(`[WEBHOOK] Rate limit exceeded for chat ${chatId}`);
+      return NextResponse.json(
+        { ok: true }, // Return ok to prevent Telegram retries
+        { headers: getRateLimitHeaders(rateLimit) }
+      );
+    }
     const languageCode = update.message.from?.language_code;
 
     // Handle photo message - recognize food and estimate calories

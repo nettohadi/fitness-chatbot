@@ -1,11 +1,12 @@
 /**
  * Secure Debug API Endpoint
  * Used for debugging LLM responses and conversation history
- * Protected by a secret token
+ * Protected by a secret token and rate limiting
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { rateLimiters, getRateLimitHeaders } from '@/lib/security/rateLimit';
 
 // Secret token for API access - set in environment variables
 const DEBUG_API_TOKEN = process.env.DEBUG_API_TOKEN;
@@ -45,6 +46,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { error: 'Unauthorized - Invalid or missing token' },
       { status: 401 }
+    );
+  }
+
+  // Rate limit debug API requests
+  const token = request.headers.get('Authorization')?.substring(7) || 'unknown';
+  const rateLimit = rateLimiters.debug(token);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: 'Rate limit exceeded. Please slow down.' },
+      { status: 429, headers: getRateLimitHeaders(rateLimit) }
     );
   }
 
