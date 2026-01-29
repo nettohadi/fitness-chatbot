@@ -1534,11 +1534,13 @@ async function executeAction(
           const gender = action.data.gender || user.gender;
           const weightKg = action.data.weightKg || (user.weightKg?.toNumber?.() || user.weightKg);
           const heightCm = action.data.heightCm || (user.heightCm?.toNumber?.() || user.heightCm);
-          const activityLevel = action.data.activityLevel || user.activityLevel;
+          // Default to 'sedentary' if activity level not set - allows calculation when user provides weight/height
+          const activityLevel = action.data.activityLevel || user.activityLevel || 'sedentary';
           const deficitTarget = action.data.deficitTarget ?? (user.deficitTarget?.toNumber?.() || user.deficitTarget) ?? 500;
 
-          // Recalculate if we have all required fields
-          if (age && gender && weightKg && heightCm && activityLevel) {
+          // Recalculate if we have the essential fields (age, gender, weight, height)
+          // Activity level defaults to sedentary if not provided
+          if (age && gender && weightKg && heightCm) {
             const { calculateFitnessMetrics } = await import('@/lib/services/bmrCalculator');
             const normalizedGender = gender.toLowerCase().includes('pria') || gender.toLowerCase() === 'male' ? 'male' : 'female';
             const metrics = calculateFitnessMetrics(
@@ -1554,8 +1556,12 @@ async function executeAction(
             action.data.bmr = metrics.bmr;
             action.data.tdee = metrics.tdee;
             action.data.dailyCalorieGoal = metrics.tdee - deficitTarget;
+            // Also save activity level if it was defaulted
+            if (!action.data.activityLevel && !user.activityLevel) {
+              action.data.activityLevel = activityLevel;
+            }
 
-            console.log('📊 Recalculated metrics:', { bmr: metrics.bmr, tdee: metrics.tdee, dailyGoal: action.data.dailyCalorieGoal });
+            console.log('📊 Recalculated metrics:', { bmr: metrics.bmr, tdee: metrics.tdee, dailyGoal: action.data.dailyCalorieGoal, activityLevel });
           }
         }
 
@@ -1565,6 +1571,40 @@ async function executeAction(
         console.log('💾 Profile update result:', profileUpdateResult.success ? '✅ Success' : '❌ Failed');
         if (!profileUpdateResult.success) {
           console.error('❌ Profile update error:', profileUpdateResult.error);
+        }
+
+        // If profile was just completed, return a message with calculated metrics
+        if (action.data.profileCompleted && action.data.bmr && action.data.tdee && action.data.dailyCalorieGoal) {
+          const deficitTarget = action.data.deficitTarget ?? (user?.deficitTarget?.toNumber?.() || user?.deficitTarget) ?? 500;
+          const userName = action.data.fullName || user?.fullName || user?.nickname || '';
+
+          // Detect language from conversation or user preference
+          const isIndonesian = user?.preferredLanguage === 'id' ||
+            (conversationContext && conversationContext.some((m: any) =>
+              m.role === 'user' && /[a-z]*nya|saya|kamu|aku|mau|sudah|belum|berapa|tinggi|berat/i.test(m.content)
+            ));
+
+          if (isIndonesian) {
+            return `Profil lengkap${userName ? `, ${userName}` : ''}! 🎉
+
+📊 **Profil Kamu:**
+• BMR: ${Math.round(action.data.bmr)} kkal/hari
+• TDEE: ${Math.round(action.data.tdee)} kkal/hari
+• Defisit: ${deficitTarget} kkal/hari
+• 🎯 Target Kalori Harian: ${Math.round(action.data.dailyCalorieGoal)} kkal
+
+Siap untuk mulai tracking? Kirim apa yang kamu makan atau olahraga hari ini!`;
+          } else {
+            return `Profile complete${userName ? `, ${userName}` : ''}! 🎉
+
+📊 **Your Profile:**
+• BMR: ${Math.round(action.data.bmr)} kcal/day
+• TDEE: ${Math.round(action.data.tdee)} kcal/day
+• Deficit: ${deficitTarget} kcal/day
+• 🎯 Daily Calorie Target: ${Math.round(action.data.dailyCalorieGoal)} kcal
+
+Ready to start tracking? Send me what you ate or your exercise today!`;
+          }
         }
         break;
 

@@ -8,7 +8,7 @@ import type { PromptUser } from './types';
 /**
  * Compact language instructions - included in ALL prompts
  */
-export const LANG_RULES = `LANGUAGE: Reply in user's language. Match their style (casual/formal, emoji/no-emoji).`;
+export const LANG_RULES = `LANGUAGE: ALWAYS reply in the SAME language as the user's message. If user writes in Indonesian, respond in Indonesian. If user writes in English, respond in English. Match their style (casual/formal).`;
 
 /**
  * Build minimal user context string for prompts

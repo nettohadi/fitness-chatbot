@@ -900,7 +900,7 @@ export async function processProfileSetup(
  * Valid field names for profile updates
  */
 const VALID_PROFILE_FIELDS = new Set([
-  'nickname', 'fullName', 'age', 'gender', 'weightKg', 'heightCm', 'activityLevel', 'deficitTarget'
+  'nickname', 'fullName', 'age', 'gender', 'weightKg', 'heightCm', 'activityLevel', 'deficitTarget', 'profileCompleted'
 ]);
 
 /**
