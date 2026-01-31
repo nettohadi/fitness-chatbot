@@ -25,10 +25,13 @@ export async function addCalorieEntry(
 
     console.log(`[CALORIE] Adding entry for user ${userId} with timezone ${timezone}, entryDate: ${entryDate.toISOString()}`);
 
+    // Round calories to whole number to avoid floating point issues
+    const roundedCalories = Math.round(calories);
+
     const entry = await prisma.calorieEntry.create({
       data: {
         userId,
-        calories,
+        calories: roundedCalories,
         foodDescription,
         estimatedByAi,
         entryDate,
@@ -540,9 +543,17 @@ export async function updateCalorieEntry(
   }
 ): Promise<DbResult<CalorieEntry>> {
   try {
+    // Round calories if provided
+    const roundedUpdates = {
+      ...updates,
+      calories: updates.calories !== undefined
+        ? Math.round(updates.calories)
+        : undefined,
+    };
+
     const entry = await prisma.calorieEntry.update({
       where: { id: entryId },
-      data: updates,
+      data: roundedUpdates,
     });
 
     return { success: true, data: entry as unknown as CalorieEntry };

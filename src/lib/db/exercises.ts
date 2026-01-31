@@ -29,12 +29,15 @@ export async function addExerciseEntry(
 
     console.log(`[EXERCISE] Adding entry for user ${userId} with timezone ${timezone}, entryDate: ${entryDate.toISOString()}`);
 
+    // Round calories to whole number to avoid floating point issues
+    const roundedCalories = Math.round(caloriesBurned);
+
     const entry = await prisma.exerciseEntry.create({
       data: {
         userId,
         exerciseType,
         durationMinutes,
-        caloriesBurned,
+        caloriesBurned: roundedCalories,
         metValue,
         entryDate,
       },
@@ -372,9 +375,17 @@ export async function updateExerciseEntry(
   }
 ): Promise<DbResult<ExerciseEntry>> {
   try {
+    // Round calories if provided
+    const roundedUpdates = {
+      ...updates,
+      caloriesBurned: updates.caloriesBurned !== undefined
+        ? Math.round(updates.caloriesBurned)
+        : undefined,
+    };
+
     const exercise = await prisma.exerciseEntry.update({
       where: { id: exerciseId },
-      data: updates,
+      data: roundedUpdates,
     });
 
     return { success: true, data: exercise };
@@ -437,7 +448,7 @@ export async function replaceExerciseWithMultiple(
         where: { id: exerciseId },
       });
 
-      // Create new entries
+      // Create new entries with rounded calories
       const created = await Promise.all(
         newEntries.map((entry) =>
           tx.exerciseEntry.create({
@@ -445,7 +456,7 @@ export async function replaceExerciseWithMultiple(
               userId,
               exerciseType: entry.exerciseType,
               durationMinutes: entry.durationMinutes,
-              caloriesBurned: entry.caloriesBurned,
+              caloriesBurned: Math.round(entry.caloriesBurned),
               metValue: entry.metValue,
             },
           })
