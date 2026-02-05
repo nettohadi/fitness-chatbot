@@ -115,7 +115,7 @@ function InlineCalorieEdit({
         {currentValue}
       </span>
       <span className="text-muted-foreground"> kcal</span>
-      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      <Pencil className="h-3 w-3 text-muted-foreground opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity" />
     </button>
   )
 }
