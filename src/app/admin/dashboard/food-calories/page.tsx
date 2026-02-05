@@ -252,7 +252,48 @@ export default function FoodCaloriesPage() {
         <TableSkeleton rows={10} />
       ) : data ? (
         <>
-          <div className="overflow-hidden shadow ring-1 ring-border rounded-lg">
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3">
+            {data.foods.map((food) => (
+              <div
+                key={food.id}
+                className="bg-card rounded-lg shadow border border-border p-4 space-y-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-medium text-foreground">{food.name}</div>
+                    <div className="text-xs text-muted-foreground">{food.nameNormalized}</div>
+                  </div>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium shrink-0 ${
+                      food.source === "ai"
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+                        : food.source === "manual"
+                        ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                        : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400"
+                    }`}
+                  >
+                    {food.source === "ai" && <Bot className="h-3 w-3" />}
+                    {food.source === "manual" && <User className="h-3 w-3" />}
+                    {food.source}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <InlineCalorieEdit
+                    foodId={food.id}
+                    currentValue={food.caloriesPer100g}
+                  />
+                  <div className="flex items-center gap-3 text-muted-foreground">
+                    <span>{food.usageCount}x used</span>
+                    <span>{new Date(food.updatedAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-hidden shadow ring-1 ring-border rounded-lg">
             <table className="min-w-full divide-y divide-border">
               <thead className="bg-secondary/50">
                 <tr>
@@ -311,15 +352,15 @@ export default function FoodCaloriesPage() {
                 ))}
               </tbody>
             </table>
-
-            {data.foods.length === 0 && (
-              <div className="text-center py-12 bg-card">
-                <p className="text-sm text-muted-foreground">
-                  {search ? `No foods found matching "${search}"` : "No food calories logged yet"}
-                </p>
-              </div>
-            )}
           </div>
+
+          {data.foods.length === 0 && (
+            <div className="text-center py-12 bg-card rounded-lg border border-border">
+              <p className="text-sm text-muted-foreground">
+                {search ? `No foods found matching "${search}"` : "No food calories logged yet"}
+              </p>
+            </div>
+          )}
 
           {/* Pagination */}
           <div className="flex items-center justify-between">
