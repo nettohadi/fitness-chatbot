@@ -1,6 +1,6 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 
 // Types
 export interface DashboardStats {
@@ -351,5 +351,33 @@ export function useFoodCalories(
   return useQuery<FoodCaloriesResponse>({
     queryKey: ["admin", "food-calories", page, limit, search, source],
     queryFn: () => fetchJson<FoodCaloriesResponse>(`/api/admin/food-calories?${params}`),
+  })
+}
+
+export function useUpdateFoodCalorie() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      caloriesPer100g,
+    }: {
+      id: string
+      caloriesPer100g: number
+    }) => {
+      const response = await fetch(`/api/admin/food-calories/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caloriesPer100g }),
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to update")
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "food-calories"] })
+    },
   })
 }

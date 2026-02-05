@@ -1,9 +1,124 @@
 "use client"
 
-import { useState } from "react"
-import { useFoodCalories } from "@/lib/hooks/useAdminData"
+import { useState, useRef, useEffect } from "react"
+import { useFoodCalories, useUpdateFoodCalorie } from "@/lib/hooks/useAdminData"
 import { TableSkeleton, CardSkeleton } from "@/components/ui/LoadingSpinner"
-import { RefreshCw, Search, Database, Bot, User } from "lucide-react"
+import { RefreshCw, Search, Database, Bot, User, Pencil, Check, X, Loader2 } from "lucide-react"
+
+function InlineCalorieEdit({
+  foodId,
+  currentValue,
+}: {
+  foodId: string
+  currentValue: number
+}) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(currentValue.toString())
+  const [flash, setFlash] = useState<"success" | "error" | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const updateMutation = useUpdateFoodCalorie()
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editing])
+
+  useEffect(() => {
+    setValue(currentValue.toString())
+  }, [currentValue])
+
+  const handleSave = () => {
+    const parsed = parseInt(value, 10)
+    if (!parsed || parsed <= 0 || parsed === currentValue) {
+      setEditing(false)
+      setValue(currentValue.toString())
+      return
+    }
+
+    updateMutation.mutate(
+      { id: foodId, caloriesPer100g: parsed },
+      {
+        onSuccess: () => {
+          setEditing(false)
+          setFlash("success")
+          setTimeout(() => setFlash(null), 1500)
+        },
+        onError: () => {
+          setFlash("error")
+          setValue(currentValue.toString())
+          setEditing(false)
+          setTimeout(() => setFlash(null), 1500)
+        },
+      }
+    )
+  }
+
+  const handleCancel = () => {
+    setValue(currentValue.toString())
+    setEditing(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleSave()
+    if (e.key === "Escape") handleCancel()
+  }
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          ref={inputRef}
+          type="number"
+          min="1"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          disabled={updateMutation.isPending}
+          className="w-20 px-2 py-1 text-sm font-mono border border-primary rounded bg-card text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+        {updateMutation.isPending ? (
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        ) : (
+          <>
+            <button
+              onClick={handleSave}
+              className="p-1 text-green-600 hover:text-green-700 dark:text-green-400 dark:hover:text-green-300"
+            >
+              <Check className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={handleCancel}
+              className="p-1 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className={`group inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 -ml-1.5 transition-colors hover:bg-secondary ${
+        flash === "success"
+          ? "bg-green-100 dark:bg-green-900/30"
+          : flash === "error"
+          ? "bg-red-100 dark:bg-red-900/30"
+          : ""
+      }`}
+    >
+      <span className="font-mono font-medium text-foreground">
+        {currentValue}
+      </span>
+      <span className="text-muted-foreground"> kcal</span>
+      <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+    </button>
+  )
+}
 
 export default function FoodCaloriesPage() {
   const [page, setPage] = useState(1)
@@ -166,10 +281,10 @@ export default function FoodCaloriesPage() {
                       <div className="text-xs text-muted-foreground">{food.nameNormalized}</div>
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm">
-                      <span className="font-mono font-medium text-foreground">
-                        {food.caloriesPer100g}
-                      </span>
-                      <span className="text-muted-foreground"> kcal</span>
+                      <InlineCalorieEdit
+                        foodId={food.id}
+                        currentValue={food.caloriesPer100g}
+                      />
                     </td>
                     <td className="whitespace-nowrap px-3 py-4 text-sm">
                       <span
