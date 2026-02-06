@@ -31,7 +31,7 @@ export default function SettingsPage() {
         food_estimate_model_id_gemini:
           data.food_estimate_model_id_gemini || "google/gemini-2.5-flash",
         food_estimate_model_id_gpt:
-          data.food_estimate_model_id_gpt || "openai/gpt-4o-mini",
+          data.food_estimate_model_id_gpt || "openai/gpt-4o",
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load settings");
@@ -196,10 +196,10 @@ export default function SettingsPage() {
                   updateSetting("food_estimate_model_id_gpt", e.target.value)
                 }
                 className="w-full px-3 py-2 bg-background border border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                placeholder="openai/gpt-4o-mini"
+                placeholder="openai/gpt-4o"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                e.g., openai/gpt-4o-mini, openai/gpt-4o
+                e.g., openai/gpt-4o, openai/gpt-4.1
               </p>
             </div>
           </div>
