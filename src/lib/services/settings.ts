@@ -46,7 +46,7 @@ export async function getSetting(key: string): Promise<string | null> {
 
 /**
  * Get the model to use for food estimation
- * Returns the full model ID (e.g., 'google/gemini-2.5-flash' or 'openai/gpt-4o-mini')
+ * Returns the full model ID (e.g., 'google/gemini-2.5-flash' or 'openai/gpt-4o')
  */
 export async function getFoodEstimateModel(): Promise<string> {
   const settings = await loadSettings();
