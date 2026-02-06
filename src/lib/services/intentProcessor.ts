@@ -27,7 +27,7 @@ import {
   type Language,
 } from '@/lib/prompts';
 import { getBestFoodMatch, saveFoodCalorie, type FoodCalorieResult } from './foodCalorie';
-import { getFoodEstimateModel } from './settings';
+// getFoodEstimateModel is only used for image recognition (imageRecognition.ts)
 
 // Use OpenRouter for LLM calls
 const openrouter = new OpenAI({
@@ -503,6 +503,55 @@ export interface FoodEstimateResult {
 }
 
 /**
+ * Parse food estimate from plain text LLM response (fallback when JSON parsing fails)
+ * Extracts food items from the consistent text pattern: [portion]g × [calPer100g]/100g = [total] kcal
+ */
+function parseEstimateFromText(response: string): { estimate: { items: FoodEstimateItem[] }; message: string } | null {
+  const items: FoodEstimateItem[] = [];
+  // Match: 40.6g × 250/100g = 102 kcal (handles commas as decimal separators too)
+  const calcRegex = /(\d+(?:[.,]\d+)?)\s*g\s*×\s*(\d+(?:[.,]\d+)?)\s*\/\s*100g\s*=\s*(\d+(?:[.,]\d+)?)\s*kcal/gi;
+  const lines = response.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const match = calcRegex.exec(lines[i]);
+    if (match) {
+      const portion = parseFloat(match[1].replace(',', '.'));
+      const calPer100g = Math.round(parseFloat(match[2].replace(',', '.')));
+      const calories = Math.round(parseFloat(match[3].replace(',', '.')));
+
+      // Food name is on the preceding line (strip emoji and whitespace)
+      let foodName = '';
+      for (let j = i - 1; j >= 0; j--) {
+        const candidate = lines[j].replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, '').trim();
+        if (candidate.length > 0) {
+          foodName = candidate;
+          break;
+        }
+      }
+
+      if (foodName && calories > 0) {
+        items.push({
+          food: foodName,
+          calories,
+          portion: `${portion}g`,
+          calPer100g,
+          source: 'ai',
+        });
+      }
+    }
+    // Reset regex lastIndex for next iteration since we use 'g' flag
+    calcRegex.lastIndex = 0;
+  }
+
+  if (items.length > 0) {
+    console.log(`[FoodEstimate] Text fallback parsed ${items.length} item(s) from plain text response`);
+    return { estimate: { items }, message: response };
+  }
+
+  return null;
+}
+
+/**
  * Extract food names from user message using LLM
  * Returns array of food names for calorie lookup
  */
@@ -572,21 +621,31 @@ export async function processFoodEstimate(
 
   const systemPrompt = buildFoodEstimatorPrompt(user, cachedCalorieData.length > 0 ? cachedCalorieData : null);
 
-  // Get the model to use for food estimation from settings
-  const foodEstimateModelId = await getFoodEstimateModel();
-  console.log(`[FoodEstimate] Using model: ${foodEstimateModelId}`);
+  // Text food estimation uses the default model (MODEL_ID from env)
+  // The configurable getFoodEstimateModel() is only for image-based food recognition
+  console.log(`[FoodEstimate] Using default model: ${MODEL_ID}`);
 
   // Limit history to 4 messages to avoid confusion
   const limitedHistory = history.slice(-4);
 
-  // Low temperature for accurate calorie calculations
-  const response = await callLLM(systemPrompt, message, limitedHistory, user.id, 512, 0.3, foodEstimateModelId);
-  const result = parseJSON<{ estimate: { items: FoodEstimateItem[] }; message: string }>(response);
+  // Use callLLMForJSON with built-in retry for JSON validation
+  const { result, rawResponse } = await callLLMForJSON<{ estimate: { items: FoodEstimateItem[] }; message: string }>(
+    systemPrompt,
+    message,
+    limitedHistory,
+    user.id,
+    512,
+    0.3,
+    (r) => !!(r && r.estimate && Array.isArray(r.estimate.items) && r.estimate.items.length > 0)
+  );
 
-  if (result && result.estimate) {
+  // Try structured JSON result first, then text fallback
+  const parsed = (result && result.estimate) ? result : parseEstimateFromText(rawResponse);
+
+  if (parsed && parsed.estimate) {
     // Save new LLM estimates to database for future consistency
     // Only save items that have calPer100g and are from AI (not cached)
-    for (const item of result.estimate.items) {
+    for (const item of parsed.estimate.items) {
       // Only save if LLM provided calPer100g and it's an AI estimate (not using cached data)
       if (item.calPer100g && item.calPer100g > 0 && item.source === 'ai') {
         saveFoodCalorie({
@@ -598,19 +657,19 @@ export async function processFoodEstimate(
     }
 
     // Handle message at root level OR nested inside estimate (LLM inconsistency)
-    const extractedMessage = result.message || (result.estimate as any).message;
+    const extractedMessage = parsed.message || (parsed.estimate as any).message || rawResponse;
 
     return {
       estimate: {
-        items: result.estimate.items,
+        items: parsed.estimate.items,
         timestamp: Date.now(),
       },
       message: extractedMessage,
     };
   }
 
-  // Return raw response if parsing fails
-  return { message: response };
+  // Return raw response if all parsing fails
+  return { message: rawResponse };
 }
 
 /**

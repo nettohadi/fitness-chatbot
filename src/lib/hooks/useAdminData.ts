@@ -361,18 +361,51 @@ export function useUpdateFoodCalorie() {
     mutationFn: async ({
       id,
       caloriesPer100g,
+      name,
     }: {
       id: string
-      caloriesPer100g: number
+      caloriesPer100g?: number
+      name?: string
     }) => {
+      const body: Record<string, any> = {}
+      if (caloriesPer100g !== undefined) body.caloriesPer100g = caloriesPer100g
+      if (name !== undefined) body.name = name
       const response = await fetch(`/api/admin/food-calories/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ caloriesPer100g }),
+        body: JSON.stringify(body),
       })
       if (!response.ok) {
         const data = await response.json()
         throw new Error(data.error || "Failed to update")
+      }
+      return response.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "food-calories"] })
+    },
+  })
+}
+
+export function useCreateFoodCalorie() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      name,
+      caloriesPer100g,
+    }: {
+      name: string
+      caloriesPer100g: number
+    }) => {
+      const response = await fetch("/api/admin/food-calories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, caloriesPer100g }),
+      })
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to create")
       }
       return response.json()
     },

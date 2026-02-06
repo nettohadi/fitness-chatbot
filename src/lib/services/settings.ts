@@ -53,7 +53,7 @@ export async function getFoodEstimateModel(): Promise<string> {
   const modelType = settings['food_estimate_model'] || 'gemini';
 
   if (modelType === 'gpt') {
-    return settings['food_estimate_model_id_gpt'] || 'openai/gpt-4o-mini';
+    return settings['food_estimate_model_id_gpt'] || 'openai/gpt-4o';
   }
 
   return settings['food_estimate_model_id_gemini'] || 'google/gemini-2.5-flash';
